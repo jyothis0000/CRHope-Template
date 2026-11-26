@@ -12,6 +12,9 @@
   --color-neutral-700: #5b5b5b;
   --color-neutral-900: #252525;
   --color-background: #f2ede4;
+  /* CR HOPE red: buttons, small icons and fact chips. Backgrounds stay neutral. */
+  --color-brand: #e64b37;
+  --color-brand-dark: #c93b28;
 
   --radius-sm: 2.5px;
   --radius-lg: 4px;

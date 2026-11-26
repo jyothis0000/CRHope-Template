@@ -96,7 +96,8 @@ const testimonials = [
 
 <style>
   .partner-logo {
-    filter: grayscale(1) invert(1);
+    /* contrast() first pushes the JPEGs' off-white backgrounds to pure white, so they vanish. */
+    filter: grayscale(1) contrast(1.2) invert(1);
     mix-blend-mode: screen;
   }
 </style>

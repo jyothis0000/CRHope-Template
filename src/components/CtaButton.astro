@@ -11,12 +11,12 @@ type Props = HTMLAttributes<"a"> &
   HTMLAttributes<"button"> & {
     label: string;
     href?: string;
-    variant?: "black" | "white";
+    variant?: "accent" | "white";
     size?: "md" | "lg";
     icon?: boolean;
   };
 
-const { label, href, variant = "black", size = "md", icon = false, class: className, ...rest } = Astro.props;
+const { label, href, variant = "accent", size = "md", icon = false, class: className, ...rest } = Astro.props;
 const Tag = href ? "a" : "button";
 const typeClass = size === "lg" ? "type-author-semibold-18" : "type-author-semibold-16";
 
@@ -204,12 +204,12 @@ const arrow = `99.97464788732394,41.169629629629625 99.97464788732394,41.1696296
       --cta-icon-travel: 14px;
     }
   }
-  .cta-button[data-variant="black"] {
-    background-color: var(--color-neutral-900);
-    color: var(--color-neutral-200);
+  .cta-button[data-variant="accent"] {
+    background-color: var(--color-brand);
+    color: var(--color-neutral-100);
   }
-  .cta-button[data-variant="black"]:not(:disabled):is(:hover, :focus-visible) {
-    background-color: var(--color-neutral-700);
+  .cta-button[data-variant="accent"]:not(:disabled):is(:hover, :focus-visible) {
+    background-color: var(--color-brand-dark);
   }
   .cta-button[data-variant="white"] {
     background-color: var(--color-neutral-100);
