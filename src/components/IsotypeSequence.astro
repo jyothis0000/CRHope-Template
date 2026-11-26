@@ -1,0 +1,215 @@
+---
+// Pinned scroll sequence: the 3D asterisk flattens into the flat one, which
+// shrinks into the first column of a row, then the portrait and the bio card
+// rise in beside it. With reduced motion it's just the static stack.
+import EmbossedIsotype from "./EmbossedIsotype.astro";
+import PresentationCard from "./PresentationCard.astro";
+
+// Share of the frame the asterisk fills. The script reads it back from --isotype-size.
+const isotypeSize = 0.55;
+---
+
+<!--
+  Bottom padding keeps the next section (the FAQ's DarkReveal line) from
+  starting to draw right under the row the moment the pin releases. It sits
+  on the section, outside the pinned stage, so it doesn't change the pin.
+-->
+<section class="isotype-sequence px-site-margin pb-section-high" data-isotype-sequence>
+  <div class="isotype-sequence__stage" data-isotype-stage>
+    <!-- Centred start: the 3D asterisk with the flat one stacked on top. -->
+    <div class="isotype-sequence__hero" data-isotype-hero>
+      <div class="isotype-sequence__frame relative aspect-square" style={`--isotype-size: ${isotypeSize};`} data-isotype-frame>
+        <div class="absolute inset-0" data-isotype-embossed>
+          <EmbossedIsotype
+            src="/logo-files/asterisco-icono.svg"
+            label="Jeppesen asterisk"
+            relief="carved"
+            size={isotypeSize}
+            shadow={0.3}
+            travel={0.5}
+          />
+        </div>
+        <svg class="isotype-sequence__flat text-neutral-900" viewBox="0 0 100 100" aria-hidden="true" data-isotype-flat>
+          <polygon
+            fill="currentColor"
+            points="100,42.4 68.2,42.4 90.7,20 80,9.3 57.6,31.8 57.6,0 42.4,0 42.4,31.8 20,9.3 9.3,20 31.8,42.4 0,42.4 0,57.6 31.8,57.6 9.3,80 20,90.7 42.4,68.2 42.4,100 57.6,100 57.6,68.2 80,90.7 90.7,80 68.2,57.6 100,57.6"
+          ></polygon>
+        </svg>
+      </div>
+    </div>
+    <!-- End state: asterisk slot + two blocks, 4 columns each.
+         Both blocks are rounded; the stagger's clip-path rounds to match. -->
+    <div class="isotype-sequence__row grid grid-cols-12 gap-gutter" data-isotype-row>
+      <!-- Phones: asterisk and tile share the first row (6 + 6) and the
+           card takes the full width below, as tall as its content, so its
+           bio has room to show and the row still fits the pinned screen. -->
+      <div class="col-span-4 aspect-square max-md:col-span-6" data-isotype-slot></div>
+      <div class="overflow-hidden rounded-lg bg-neutral-900 col-span-4 aspect-square max-md:col-span-6" data-isotype-block="true">
+        <img
+          src="/about/lucas-b-jeppesen.webp"
+          srcset="/about/lucas-b-jeppesen-800.webp 800w, /about/lucas-b-jeppesen.webp 1600w"
+          sizes="(max-width: 767px) 50vw, 34vw"
+          alt="Portrait of Lucas B. Jeppesen"
+          class="block size-full object-cover"
+          loading="lazy"
+          decoding="async"
+          draggable="false"
+        />
+      </div>
+      <PresentationCard class="col-span-4 aspect-square max-md:col-span-12 max-md:aspect-auto" data-isotype-block />
+    </div>
+  </div>
+</section>
+
+<script>
+  import { gsap } from "gsap";
+  import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  let revert: (() => void) | undefined;
+
+  function teardown() {
+    revert?.();
+    revert = undefined;
+  }
+
+  function init() {
+    teardown();
+    const section = document.querySelector<HTMLElement>("[data-isotype-sequence]");
+    if (!section) return;
+    const stage = section.querySelector<HTMLElement>("[data-isotype-stage]");
+    const frame = section.querySelector<HTMLElement>("[data-isotype-frame]");
+    const embossed = section.querySelector<HTMLElement>("[data-isotype-embossed]");
+    const flat = section.querySelector<SVGElement>("[data-isotype-flat]");
+    const slot = section.querySelector<HTMLElement>("[data-isotype-slot]");
+    const blocks = Array.from(section.querySelectorAll<HTMLElement>("[data-isotype-block]"));
+    if (!stage || !frame || !embossed || !flat || !slot || !blocks.length) return;
+
+    const mm = gsap.matchMedia();
+    mm.add(
+      "(prefers-reduced-motion: no-preference)",
+      () => {
+        const radius = getComputedStyle(blocks[0]).borderTopLeftRadius || "0px";
+        section.classList.add("is-animated");
+        gsap.set(flat, { opacity: 0, x: 0, y: 0, scale: 1, rotation: 0, transformOrigin: "50% 50%" });
+        gsap.set(embossed, { opacity: 1 });
+
+        // The blocks rise in, unclipping upwards. Time-based, triggered when the asterisk locks in.
+        const blocksIn = gsap.timeline({ paused: true }).fromTo(
+          blocks,
+          { clipPath: `inset(100% 0% 0% 0% round ${radius})`, yPercent: 6 },
+          {
+            clipPath: `inset(0% 0% 0% 0% round ${radius})`,
+            yPercent: 0,
+            duration: 0.9,
+            stagger: 0.14,
+            ease: "power3.out",
+          },
+        );
+
+        // Offset and scale that land the flat asterisk exactly on the slot.
+        function slotTransform() {
+          const frameRect = frame!.getBoundingClientRect();
+          const slotRect = slot!.getBoundingClientRect();
+          const size = parseFloat(getComputedStyle(frame!).getPropertyValue("--isotype-size")) || 1;
+          const flatWidth = frameRect.width * size;
+          return {
+            x: slotRect.left + slotRect.width / 2 - (frameRect.left + frameRect.width / 2),
+            y: slotRect.top + slotRect.height / 2 - (frameRect.top + frameRect.height / 2),
+            scale: slotRect.width / Math.max(flatWidth, 1),
+          };
+        }
+
+        // Scrubbed while pinned; scroll length is half a viewport per second of timeline.
+        const sequence = gsap.timeline({
+          defaults: { ease: "none" },
+          scrollTrigger: {
+            trigger: stage,
+            start: "center center",
+            end: () => `+=${sequence.duration() * 0.5 * window.innerHeight}`,
+            pin: true,
+            pinSpacing: true,
+            anticipatePin: 1,
+            scrub: true,
+            invalidateOnRefresh: true,
+            onUpdate: syncBlocks,
+          },
+        });
+        sequence
+          .to({}, { duration: 0.4 })
+          .addLabel("flatten")
+          .to(flat, { opacity: 1, duration: 1 })
+          .to(embossed, { opacity: 0, duration: 0.4 }, "flatten+=0.6")
+          .addLabel("move")
+          .to(flat, {
+            x: () => slotTransform().x,
+            y: () => slotTransform().y,
+            scale: () => slotTransform().scale,
+            rotation: 0,
+            duration: 1.4,
+            ease: "power2.inOut",
+          })
+          .addLabel("locked")
+          .to({}, { duration: 0.8 });
+
+        // Blocks play in once the asterisk is locked, and reverse (faster) when scrolling back.
+        function syncBlocks() {
+          if (sequence.time() >= sequence.labels.locked - 0.001) blocksIn.timeScale(1).play();
+          else if (blocksIn.progress() > 0) blocksIn.timeScale(1.8).reverse();
+        }
+
+        return () => {
+          blocksIn.kill();
+          section.classList.remove("is-animated");
+          gsap.set([flat, embossed, ...blocks], { clearProps: "all" });
+        };
+      },
+      section,
+    );
+    revert = () => mm.revert();
+  }
+
+  document.addEventListener("astro:page-load", init);
+  document.addEventListener("astro:before-swap", teardown);
+</script>
+
+<style>
+  .isotype-sequence__stage {
+    gap: var(--spacing-section-medium);
+    flex-direction: column;
+    display: flex;
+  }
+  .isotype-sequence__hero {
+    justify-content: center;
+    display: flex;
+  }
+  .isotype-sequence__frame {
+    width: min(100%, 45rem);
+  }
+  .isotype-sequence__flat {
+    width: calc(var(--isotype-size) * 100%);
+    height: calc(var(--isotype-size) * 100%);
+    opacity: 0;
+    pointer-events: none;
+    will-change: transform, opacity;
+    margin: auto;
+    position: absolute;
+    inset: 0;
+  }
+  .isotype-sequence.is-animated .isotype-sequence__stage {
+    display: grid;
+  }
+  .isotype-sequence.is-animated .isotype-sequence__hero,
+  .isotype-sequence.is-animated .isotype-sequence__row {
+    grid-area: 1/1;
+    align-self: center;
+  }
+  .isotype-sequence.is-animated .isotype-sequence__hero {
+    z-index: 1;
+    position: relative;
+  }
+  .isotype-sequence.is-animated .isotype-sequence__frame {
+    width: min(100%, 45rem, 90svh);
+  }
+</style>

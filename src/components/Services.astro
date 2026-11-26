@@ -1,0 +1,484 @@
+---
+// Services list with a preview image per service. Desktop: hovering (or focusing)
+// a row swaps the image through a noise filter. Phones: see the comment below.
+interface Service {
+  title: string;
+  src: string;
+  alt: string;
+  /** Set for video previews. */
+  poster?: string;
+}
+
+const services: Service[] = [
+  { title: "Brand Strategy", src: "/services/services-brand-strategy.webp", alt: "Brand strategy project" },
+  { title: "Visual Identity", src: "/services/services-2.webp", alt: "Visual identity project" },
+  { title: "Motion", src: "/services/services-motion.mp4", poster: "/services/services-motion-poster.webp", alt: "Motion design project" },
+  { title: "Web Strategy", src: "/services/services-4.webp", alt: "Web strategy project" },
+  { title: "Web Design", src: "/services/services-5.webp", alt: "Web design project" },
+  { title: "Web Development", src: "/services/services-6.webp", alt: "Web development project" },
+];
+
+// Desktop images line up with their row: the first at the top, the last at the bottom.
+const offset = (index: number) => (index / (services.length - 1)) * 100;
+const mobileMediaClass = "pointer-events-none absolute inset-0 size-full select-none object-cover";
+const desktopMediaClass = "pointer-events-none absolute left-0 select-none h-auto w-full rounded-lg";
+---
+
+<section class="px-site-margin pt-section-high" data-services>
+  <h2 class="services__title type-clash-semibold-32 mb-8 text-neutral-900">Services</h2>
+  <!--
+    Phones: no cursor to hover with, so the scroll does it. The image
+    sticks under the header while the list scrolls beneath it; the row
+    crossing a line below the image is highlighted and its image shown.
+    Tapping a row also selects it.
+  -->
+  <div class="services-m md:hidden" data-services-mobile>
+    <div class="services-m__frame" data-services-m-frame>
+      <div class="relative aspect-video overflow-hidden rounded-lg bg-neutral-200">
+        {
+          services.map((service, index) =>
+            service.poster ? (
+              <video
+                src={service.src}
+                poster={service.poster}
+                width="1600"
+                height="1000"
+                muted
+                loop
+                playsinline
+                disablepictureinpicture
+                preload="none"
+                class={mobileMediaClass}
+                style={`opacity: ${index === 0 ? 1 : 0}`}
+                data-services-m-image
+                data-alt={service.alt}
+              />
+            ) : (
+              <img
+                src={service.src}
+                alt={index === 0 ? service.alt : ""}
+                width="1600"
+                height="1000"
+                loading="lazy"
+                decoding="async"
+                draggable="false"
+                class={mobileMediaClass}
+                style={`opacity: ${index === 0 ? 1 : 0}`}
+                data-services-m-image
+                data-alt={service.alt}
+              />
+            ),
+          )
+        }
+      </div>
+    </div>
+    <ul class="services-m__list m-0 list-none p-0">
+      {
+        services.map((service, index) => (
+          <li data-services-m-row>
+            <button
+              type="button"
+              class:list={["services-m__row w-full text-left focus-visible:outline-2 focus-visible:outline-offset-4", index === 0 && "is-active"]}
+              data-services-m-button
+              data-service-index={index}
+              aria-pressed={String(index === 0)}
+            >
+              {service.title}
+            </button>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+  <div class="grid grid-cols-12 gap-gutter mx-auto max-w-none items-stretch max-md:hidden">
+    <ul class="col-span-12 m-0 list-none p-0 md:col-span-7">
+      {
+        services.map((service, index) => (
+          <li class="py-2" data-service-row>
+            <button
+              type="button"
+              class:list={[
+                "type-clash-semibold-3xl w-full text-left focus-visible:outline-2 focus-visible:outline-offset-4",
+                index === 0 ? "text-neutral-500" : "text-neutral-900",
+              ]}
+              data-service-button
+              data-service-index={index}
+              aria-pressed={String(index === 0)}
+            >
+              {service.title}
+            </button>
+          </li>
+        ))
+      }
+    </ul>
+    <div class="relative col-span-5 min-w-0">
+      {
+        services.map((service, index) => {
+          const style = `top: ${offset(index)}%; transform: translateY(-${offset(index)}%); visibility: ${index === 0 ? "visible" : "hidden"}`;
+          return service.poster ? (
+            <video
+              src={service.src}
+              poster={service.poster}
+              aria-label={service.alt}
+              width="1600"
+              height="1000"
+              muted
+              loop
+              playsinline
+              disablepictureinpicture
+              preload="none"
+              class={desktopMediaClass}
+              style={style}
+              data-service-image
+            />
+          ) : (
+            <img
+              src={service.src}
+              alt={service.alt}
+              width="1600"
+              height="1000"
+              loading="lazy"
+              decoding="async"
+              draggable="false"
+              class={desktopMediaClass}
+              style={style}
+              data-service-image
+            />
+          );
+        })
+      }
+    </div>
+  </div>
+</section>
+
+<script>
+  import { gsap } from "gsap";
+  import { ScrollTrigger } from "gsap/ScrollTrigger";
+  import { hasFinePointer } from "../scripts/lib/pointer";
+  import { NoiseFilter } from "../scripts/lib/noiseFilter";
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  // Phones: the row whose centre passes this line (from the viewport top) is active.
+  const MOBILE_ACTIVE_LINE = "62%";
+  const NOISE_OPTIONS = {
+    variant: "static",
+    grain: 0.5,
+    tone: 0.25,
+    boil: 14,
+    fps: 30,
+    scatter: 3,
+    outDuration: 320,
+    inDuration: 480,
+  };
+  const ACTIVE_COLOR = "#5b5b5b";
+  const IDLE_COLOR = "#252525";
+
+  let media: gsap.MatchMedia | undefined;
+
+  function prefersReducedMotion() {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  // Plays only the active video, and only while the section is near the viewport.
+  function createVideoController(section: Element, elements: Element[], initial: Element | undefined) {
+    const videos = elements.filter((element): element is HTMLVideoElement => element instanceof HTMLVideoElement);
+    let active = initial;
+    let inView = false;
+
+    function sync() {
+      videos.forEach((video) => {
+        if (video === active && inView && !prefersReducedMotion()) video.play().catch(() => {});
+        else video.pause();
+      });
+    }
+
+    const observer = videos.length
+      ? new IntersectionObserver(
+          ([entry]) => {
+            if (entry.isIntersecting) {
+              videos.forEach((video) => {
+                if (video.preload !== "auto") video.preload = "auto";
+              });
+            }
+            inView = entry.isIntersecting;
+            sync();
+          },
+          { rootMargin: "25% 0px" },
+        )
+      : undefined;
+    observer?.observe(section);
+
+    return {
+      activate(element: Element | undefined) {
+        if (element === active) return;
+        active = element;
+        if (element instanceof HTMLVideoElement) element.currentTime = 0;
+        sync();
+      },
+      destroy() {
+        observer?.disconnect();
+        videos.forEach((video) => video.pause());
+      },
+    };
+  }
+
+  function setupMobile(section: HTMLElement) {
+    const container = section.querySelector<HTMLElement>("[data-services-mobile]");
+    const frame = container?.querySelector<HTMLElement>("[data-services-m-frame]");
+    if (!container || !frame) return;
+    const rows = Array.from(container.querySelectorAll<HTMLElement>("[data-services-m-row]"));
+    const buttons = Array.from(container.querySelectorAll<HTMLElement>("[data-services-m-button]"));
+    const images = Array.from(container.querySelectorAll<HTMLElement>("[data-services-m-image]"));
+    const reducedMotion = prefersReducedMotion();
+    let activeIndex = 0;
+
+    // Scrolling swaps images quickly, so load and decode them all up front.
+    images.forEach((image) => {
+      if (image instanceof HTMLImageElement) {
+        image.loading = "eager";
+        image.decode().catch(() => {});
+      }
+    });
+    const videos = createVideoController(section, images, images[0]);
+
+    // Only the visible image carries its alt text.
+    function setLabel(element: HTMLElement, visible: boolean) {
+      const label = visible ? (element.dataset.alt ?? "") : "";
+      if (element instanceof HTMLImageElement) element.alt = label;
+      else if (label) element.setAttribute("aria-label", label);
+      else element.removeAttribute("aria-label");
+    }
+
+    function select(index: number, immediate = false) {
+      if (index === activeIndex && !immediate) return;
+      const previous = images[activeIndex];
+      const next = images[index];
+      activeIndex = index;
+      buttons.forEach((button, buttonIndex) => {
+        const active = buttonIndex === index;
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-pressed", String(active));
+      });
+      images.forEach((image, imageIndex) => setLabel(image, imageIndex === index));
+      videos.activate(next);
+      if (!next) return;
+
+      const duration = reducedMotion || immediate ? 0 : 0.45;
+      gsap.killTweensOf(images);
+      // Stack: incoming on top, outgoing just below it while it fades.
+      images.forEach((image) => {
+        image.style.zIndex = image === next ? "2" : image === previous ? "1" : "0";
+      });
+      gsap.fromTo(next, { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration, ease: "power3.out" });
+      images.forEach((image) => {
+        if (image === next) return;
+        gsap.to(image, { opacity: 0, duration: duration * 0.6, delay: image === previous ? duration * 0.5 : 0, ease: "power1.out" });
+      });
+    }
+
+    // One trigger per row after the first; the active index is how many have been passed.
+    // Declared before creating them: onRefresh can fire during ScrollTrigger.create().
+    let rowTriggers: ScrollTrigger[] = [];
+    rowTriggers = rows.slice(1).map((row) =>
+      ScrollTrigger.create({
+        trigger: row,
+        start: `center ${MOBILE_ACTIVE_LINE}`,
+        onToggle: () => syncToScroll(),
+        onRefresh: () => syncToScroll(),
+      }),
+    );
+
+    function syncToScroll(immediate = false) {
+      const scroll = rowTriggers[0]?.scroll() ?? 0;
+      const passed = rowTriggers.filter((trigger) => scroll >= trigger.start).length;
+      select(passed, immediate);
+    }
+
+    // Fine pointers get ScrollSmoother, which breaks CSS sticky, so pin the frame instead.
+    const framePin = hasFinePointer()
+      ? ScrollTrigger.create({
+          trigger: frame,
+          start: "top top",
+          endTrigger: container,
+          end: () => `bottom top+=${frame.offsetHeight}`,
+          pin: true,
+          pinSpacing: false,
+        })
+      : undefined;
+
+    function onButtonClick(event: Event) {
+      const button = event.currentTarget as HTMLElement;
+      select(Number(button.dataset.serviceIndex));
+    }
+    buttons.forEach((button) => button.addEventListener("click", onButtonClick));
+    syncToScroll(true);
+
+    return () => {
+      rowTriggers.forEach((trigger) => trigger.kill());
+      framePin?.kill();
+      buttons.forEach((button) => button.removeEventListener("click", onButtonClick));
+      gsap.killTweensOf(images);
+      videos.destroy();
+      images.forEach((image, index) => {
+        image.style.zIndex = "";
+        image.style.transform = "";
+        image.style.opacity = index === 0 ? "1" : "0";
+        setLabel(image, index === 0);
+      });
+      buttons.forEach((button, index) => {
+        button.classList.toggle("is-active", index === 0);
+        button.setAttribute("aria-pressed", String(index === 0));
+      });
+    };
+  }
+
+  function setupDesktop(section: HTMLElement) {
+    const rows = Array.from(section.querySelectorAll<HTMLElement>("[data-service-row]"));
+    const buttons = Array.from(section.querySelectorAll<HTMLElement>("[data-service-button]"));
+    const images = Array.from(section.querySelectorAll<HTMLElement>("[data-service-image]"));
+    let activeIndex = 0;
+    let pointerY: number | null = null;
+    const colorDuration = prefersReducedMotion() ? 0 : 0.25;
+    const filters = images.map((image) => new NoiseFilter(image, () => NOISE_OPTIONS));
+    const videos = createVideoController(section, images, images[0]);
+
+    images.forEach((image, index) => {
+      image.style.opacity = "";
+      image.style.visibility = index === 0 ? "visible" : "hidden";
+      if (index !== 0) filters[index].conceal();
+    });
+    gsap.set(buttons, {
+      color: (index: number) => (index === 0 ? ACTIVE_COLOR : IDLE_COLOR),
+      x: (index: number) => (index === 0 ? 4 : 0),
+    });
+    buttons.forEach((button, index) => {
+      button.setAttribute("aria-pressed", index === 0 ? "true" : "false");
+    });
+
+    function select(index: number) {
+      if (index === activeIndex) return;
+      filters[activeIndex]?.hide();
+      filters[index]?.show();
+      videos.activate(images[index]);
+      activeIndex = index;
+      gsap.to(buttons, {
+        color: (buttonIndex: number) => (buttonIndex === index ? ACTIVE_COLOR : IDLE_COLOR),
+        x: (buttonIndex: number) => (buttonIndex === index ? 4 : 0),
+        duration: colorDuration === 0 ? 0 : 0.14,
+        ease: "power2.out",
+        overwrite: true,
+      });
+      buttons.forEach((button, buttonIndex) => {
+        button.setAttribute("aria-pressed", buttonIndex === index ? "true" : "false");
+      });
+    }
+
+    // Select the row under the last known pointer position (also re-checked on scroll).
+    function selectRowUnderPointer() {
+      if (pointerY === null) return;
+      const y = pointerY;
+      const index = rows.findIndex((row) => {
+        const { top, bottom } = row.getBoundingClientRect();
+        return y >= top && y < bottom;
+      });
+      if (index !== -1) select(index);
+    }
+
+    function onPointerMove(event: PointerEvent) {
+      if (event.pointerType === "touch") return;
+      pointerY = event.clientY;
+      selectRowUnderPointer();
+    }
+
+    function onButtonActivate(event: Event) {
+      const button = event.currentTarget as HTMLElement;
+      select(Number(button.dataset.serviceIndex));
+    }
+
+    document.addEventListener("pointermove", onPointerMove, { passive: true });
+    window.addEventListener("scroll", selectRowUnderPointer, { passive: true });
+    window.addEventListener("resize", selectRowUnderPointer);
+    buttons.forEach((button) => {
+      button.addEventListener("focus", onButtonActivate);
+      button.addEventListener("click", onButtonActivate);
+    });
+
+    return () => {
+      document.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("scroll", selectRowUnderPointer);
+      window.removeEventListener("resize", selectRowUnderPointer);
+      buttons.forEach((button) => {
+        button.removeEventListener("focus", onButtonActivate);
+        button.removeEventListener("click", onButtonActivate);
+      });
+      gsap.killTweensOf(buttons);
+      filters.forEach((filter) => filter.destroy());
+      videos.destroy();
+    };
+  }
+
+  function init() {
+    media?.revert();
+    const section = document.querySelector<HTMLElement>("[data-services]");
+    if (!section) return;
+    media = gsap.matchMedia();
+    media.add("(max-width: 767.98px)", () => setupMobile(section));
+    media.add("(min-width: 768px)", () => setupDesktop(section));
+  }
+
+  init();
+  document.addEventListener("astro:page-load", init);
+  document.addEventListener("astro:before-swap", () => {
+    media?.revert();
+  });
+</script>
+
+<style>
+  .services-m {
+    --services-m-offset: calc(var(--spacing-site-margin) + 2.5rem + 0.75rem);
+  }
+  .services-m__frame {
+    z-index: 1;
+    margin-top: calc(-1 * var(--services-m-offset));
+    padding-top: var(--services-m-offset);
+    background-color: var(--color-neutral-100);
+    padding-bottom: 1.25rem;
+    position: sticky;
+    top: 0;
+  }
+  .services-m__frame:after {
+    content: "";
+    inset-inline: 0;
+    background: linear-gradient(var(--color-neutral-100), color-mix(in srgb, var(--color-neutral-100) 0%, transparent));
+    pointer-events: none;
+    height: 1.5rem;
+    position: absolute;
+    top: 100%;
+  }
+  .services__title {
+    z-index: 2;
+    position: relative;
+  }
+  .services-m__row {
+    font-family: var(--font-clash);
+    font-size: min(10.6vw, var(--text-fluid-3xl));
+    color: color-mix(in srgb, var(--color-neutral-900) 22%, transparent);
+    padding-block: 0.15em;
+    font-weight: 580;
+    line-height: 1.02;
+    transition:
+      color 0.3s,
+      transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    display: block;
+  }
+  .services-m__row.is-active {
+    color: var(--color-neutral-900);
+    transform: translate(0.12em);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .services-m__row {
+      transition: none;
+    }
+  }
+</style>

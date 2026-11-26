@@ -1,0 +1,539 @@
+---
+/**
+ * Scroll-scrubbed "write on": the real text fades in word by word while a grainy, boiling ghost
+ * copy underneath fades out. Slot content (e.g. a CTA) fades up once the text is fully written.
+ */
+interface Props {
+  /** The sentence that gets written on. */
+  text: string;
+  /** Ghost copy shown before writing; defaults to `text`. */
+  ghost?: string;
+  /** ScrollTrigger start/end of the scrub, measured on the text. */
+  start?: string;
+  end?: string;
+  /** Layout classes for the wrapper (grid placement, width, alignment). */
+  class?: string;
+}
+
+const { text, ghost = text, start = "top 65%", end = "top 25%", class: className } = Astro.props;
+const hasAfter = Astro.slots.has("default");
+---
+
+<div class:list={["write-on", className]} data-write-on data-start={start} data-end={end} style="--ghost-opacity: 0.3">
+  <div class="write-on__lines">
+    <p
+      class="write-on__ghost type-clash-semibold-2xl"
+      aria-hidden="true"
+      data-write-on-ghost
+      data-amount="0.45"
+      data-boil="12"
+      data-grain="1"
+      data-tone="0.5"
+      data-scatter="7"
+      data-ripple="2.5"
+      data-ripple-size="90"
+    >
+      {ghost}
+    </p>
+    <p class="write-on__text type-clash-semibold-2xl" data-write-on-text>
+      {text}
+    </p>
+  </div>
+  {
+    hasAfter && (
+      <div data-write-on-after class="mt-10 md:mt-14">
+        <slot />
+      </div>
+    )
+  }
+</div>
+
+<script>
+  import { gsap } from "gsap";
+  import { ScrollTrigger } from "gsap/ScrollTrigger";
+  import { hasFinePointer, pointerScrub } from "../scripts/lib/pointer";
+  import { clamp01, getNoiseTextureUrl, hash01, loadNoiseField } from "../scripts/lib/noiseDissolve";
+  import { createSvgElement, getFilterHost } from "../scripts/lib/noiseFilter";
+
+  /**
+   * Wraps every word of the element's text in `<div class="word" style="display: inline-block;">`,
+   * keeping the whitespace between them (the DOM split-type produces with `types: "words"`).
+   */
+  // ponytail: text nodes only; nested inline elements are not given split-type's inline-block styling.
+  function splitWords(element: HTMLElement) {
+    const html = element.innerHTML;
+    const textNodes: Text[] = [];
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) textNodes.push(walker.currentNode as Text);
+
+    const words: HTMLElement[] = [];
+    for (const node of textNodes) {
+      const value = node.nodeValue ?? "";
+      if (!/\S/.test(value)) continue;
+      const fragment = document.createDocumentFragment();
+      if (/^\s/.test(value)) fragment.append(" ");
+      const parts = value.trim().split(/\s+/);
+      parts.forEach((part, index) => {
+        const word = document.createElement("div");
+        word.className = "word";
+        word.setAttribute("style", "display: inline-block;");
+        word.textContent = part;
+        fragment.append(word);
+        words.push(word);
+        if (index < parts.length - 1) fragment.append(" ");
+      });
+      if (/\s$/.test(value)) fragment.append(" ");
+      node.replaceWith(fragment);
+    }
+
+    return {
+      words,
+      revert: () => {
+        element.innerHTML = html;
+      },
+    };
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Noise hold: keeps the ghost text permanently grainy and "boiling".
+  // Fine pointers with scatter/ripple get an SVG filter (mask + ripple bend + noise displacement);
+  // everyone else gets a cheaper CSS mask-image made from the noise field.
+  // ---------------------------------------------------------------------------------------------
+
+  const XLINK_NS = "http://www.w3.org/1999/xlink";
+  const MASK_GAIN = 255;
+  const MAX_DPR = 2;
+  const HOLD_DEFAULTS = { amount: 0.45, boil: 12, grain: 1, tone: 0.5, scatter: 0, ripple: 0, rippleSize: 80 };
+  type HoldOptions = typeof HOLD_DEFAULTS;
+
+  let holdCount = 0;
+  const ID_PREFIX = `noise-hold-${Math.random().toString(36).slice(2, 8)}`;
+
+  // Offset of the tone lookup into the noise field, so tone is decorrelated from the mask.
+  const TONE_SHIFT_X = 61;
+  const TONE_SHIFT_Y = 173;
+
+  const grainMasks = new Map<string, Promise<{ url: string; size: number }>>();
+
+  /** A tileable PNG (blob URL) whose alpha is 0 where noise < amount, otherwise toned grain. Cached per amount/tone. */
+  function getGrainMask(amount: number, tone: number) {
+    const key = `${amount.toFixed(3)}|${tone.toFixed(3)}`;
+    let mask = grainMasks.get(key);
+    if (!mask) {
+      mask = loadNoiseField().then(
+        ({ size, values }) =>
+          new Promise<{ url: string; size: number }>((resolve, reject) => {
+            const canvas = document.createElement("canvas");
+            canvas.width = size;
+            canvas.height = size;
+            const context = canvas.getContext("2d");
+            if (!context) {
+              reject(Error("2D canvas unavailable"));
+              return;
+            }
+            const image = context.createImageData(size, size);
+            const data = image.data;
+            for (let y = 0; y < size; y++) {
+              for (let x = 0; x < size; x++) {
+                const index = y * size + x;
+                if (values[index] < amount) continue;
+                const toneIndex = ((y + TONE_SHIFT_Y) % size) * size + ((x + TONE_SHIFT_X) % size);
+                const alpha = 1 - tone + tone * values[toneIndex];
+                data[index * 4 + 3] = Math.round(alpha * 255);
+              }
+            }
+            context.putImageData(image, 0, 0);
+            canvas.toBlob((blob) => {
+              if (!blob) {
+                reject(Error("Could not encode the grain mask"));
+                return;
+              }
+              resolve({ url: URL.createObjectURL(blob), size });
+            }, "image/png");
+          }),
+      );
+      mask.catch(() => grainMasks.delete(key));
+      grainMasks.set(key, mask);
+    }
+    return mask;
+  }
+
+  /** data-amount/boil/grain/tone/scatter/ripple/ripple-size. */
+  function readHoldOptions(element: HTMLElement): Partial<HoldOptions> {
+    const options: Partial<HoldOptions> = {};
+    for (const key of Object.keys(HOLD_DEFAULTS) as (keyof HoldOptions)[]) {
+      const raw = element.dataset[key];
+      if (raw === undefined || raw === "") continue;
+      const value = Number(raw);
+      if (Number.isFinite(value)) options[key] = value;
+    }
+    return options;
+  }
+
+  class NoiseHold {
+    element: HTMLElement;
+    getOptions: () => Partial<HoldOptions>;
+    filter: SVGFilterElement;
+    image: SVGFEImageElement;
+    mask: SVGFEColorMatrixElement;
+    tone: SVGFEColorMatrixElement;
+    turbulence: SVGFETurbulenceElement;
+    bend: SVGFEDisplacementMapElement;
+    displace: SVGFEDisplacementMapElement;
+    textureSize = 256;
+    mode: "mask" | "filter" = "mask";
+    maskKey = "";
+    width = 0;
+    height = 0;
+    frame = 0;
+    lastStep = NaN;
+    visible = false;
+    paused = false;
+    started = false;
+    destroyed = false;
+    intersection?: IntersectionObserver;
+    resize?: ResizeObserver;
+    seed = Math.floor(Math.random() * 1e6);
+    id = `${ID_PREFIX}-${++holdCount}`;
+
+    constructor(element: HTMLElement, getOptions: () => Partial<HoldOptions> = () => ({})) {
+      this.element = element;
+      this.getOptions = getOptions;
+      this.filter = createSvgElement("filter", {
+        id: this.id,
+        filterUnits: "userSpaceOnUse",
+        primitiveUnits: "userSpaceOnUse",
+        "color-interpolation-filters": "sRGB",
+      });
+      this.image = createSvgElement("feImage", { preserveAspectRatio: "none", result: "tile" });
+      this.mask = createSvgElement("feColorMatrix", { in: "noise", type: "matrix", result: "mask" });
+      this.tone = createSvgElement("feColorMatrix", { in: "noise", type: "matrix", result: "tone" });
+      this.turbulence = createSvgElement("feTurbulence", {
+        type: "fractalNoise",
+        baseFrequency: 1 / HOLD_DEFAULTS.rippleSize,
+        numOctaves: 2,
+        seed: 0,
+        result: "ripple",
+      });
+      this.bend = createSvgElement("feDisplacementMap", {
+        in: "masked",
+        in2: "ripple",
+        scale: 0,
+        xChannelSelector: "R",
+        yChannelSelector: "G",
+        result: "bent",
+      });
+      this.displace = createSvgElement("feDisplacementMap", {
+        in: "bent",
+        in2: "noise",
+        scale: 0,
+        xChannelSelector: "G",
+        yChannelSelector: "B",
+      });
+      this.filter.append(
+        this.image,
+        createSvgElement("feTile", { in: "tile", result: "noise" }),
+        this.mask,
+        this.tone,
+        createSvgElement("feComposite", {
+          in: "mask",
+          in2: "tone",
+          operator: "arithmetic",
+          k1: 1,
+          k2: 0,
+          k3: 0,
+          k4: 0,
+          result: "alpha",
+        }),
+        createSvgElement("feComposite", { in: "SourceGraphic", in2: "alpha", operator: "in", result: "masked" }),
+        this.turbulence,
+        this.bend,
+        this.displace,
+      );
+    }
+
+    async start() {
+      if (this.started || this.destroyed) return;
+      this.started = true;
+      const { scatter, ripple } = this.options();
+      if ((scatter <= 0 && ripple <= 0) || !hasFinePointer()) {
+        this.mode = "mask";
+        await this.startMask();
+        return;
+      }
+
+      this.mode = "filter";
+      let size: number;
+      let url: string;
+      try {
+        ({ size, url } = await getNoiseTextureUrl());
+      } catch {
+        return;
+      }
+      if (this.destroyed) return;
+      this.textureSize = size;
+      this.image.setAttribute("href", url);
+      this.image.setAttributeNS(XLINK_NS, "xlink:href", url);
+      this.measure();
+      getFilterHost().append(this.filter);
+      this.update(performance.now());
+      this.element.style.filter = `url(#${this.id})`;
+      this.resize = new ResizeObserver(() => {
+        this.measure();
+        this.update(performance.now());
+      });
+      this.resize.observe(this.element);
+      this.observeVisibility();
+    }
+
+    async startMask() {
+      const { amount, tone } = this.options();
+      try {
+        await this.applyMask(amount, tone);
+      } catch {
+        return;
+      }
+      if (this.destroyed) return;
+      this.update(performance.now());
+      this.observeVisibility();
+    }
+
+    /** Only boil while on screen. */
+    observeVisibility() {
+      this.intersection = new IntersectionObserver((entries) => {
+        this.visible = entries.some((entry) => entry.isIntersecting);
+        this.schedule();
+      });
+      this.intersection.observe(this.element);
+    }
+
+    async applyMask(amount: number, tone: number) {
+      const clampedAmount = clamp01(amount);
+      const clampedTone = clamp01(tone);
+      const key = `${clampedAmount}|${clampedTone}`;
+      if (key === this.maskKey) return;
+      this.maskKey = key;
+      const { url, size } = await getGrainMask(clampedAmount, clampedTone);
+      if (this.destroyed || key !== this.maskKey) return;
+      this.textureSize = size;
+      const style = this.element.style;
+      const image = `url("${url}")`;
+      style.setProperty("-webkit-mask-image", image);
+      style.setProperty("mask-image", image);
+      style.setProperty("-webkit-mask-repeat", "repeat");
+      style.setProperty("mask-repeat", "repeat");
+    }
+
+    pause() {
+      if (this.paused) return;
+      this.paused = true;
+      this.schedule();
+    }
+
+    resume() {
+      if (!this.paused) return;
+      this.paused = false;
+      this.schedule();
+    }
+
+    destroy() {
+      this.destroyed = true;
+      cancelAnimationFrame(this.frame);
+      this.frame = 0;
+      this.intersection?.disconnect();
+      this.resize?.disconnect();
+      this.element.style.filter = "";
+      for (const property of [
+        "-webkit-mask-image",
+        "mask-image",
+        "-webkit-mask-repeat",
+        "mask-repeat",
+        "-webkit-mask-size",
+        "mask-size",
+        "-webkit-mask-position",
+        "mask-position",
+      ])
+        this.element.style.removeProperty(property);
+      this.filter.remove();
+    }
+
+    options(): HoldOptions {
+      return { ...HOLD_DEFAULTS, ...this.getOptions() };
+    }
+
+    measure() {
+      this.width = this.element.offsetWidth;
+      this.height = this.element.offsetHeight;
+    }
+
+    schedule() {
+      const shouldRun = this.visible && !this.paused && !this.destroyed;
+      if (shouldRun && !this.frame) {
+        this.frame = requestAnimationFrame(this.tick);
+      } else if (!shouldRun && this.frame) {
+        cancelAnimationFrame(this.frame);
+        this.frame = 0;
+      }
+    }
+
+    tick = (time: number) => {
+      this.frame = 0;
+      if (this.destroyed || this.paused || !this.visible) return;
+      const boil = this.options().boil;
+      const step = boil > 0 ? Math.floor((time * boil) / 1000) : 0;
+      if (step !== this.lastStep) this.update(time);
+      this.frame = requestAnimationFrame(this.tick);
+    };
+
+    update(time: number) {
+      const options = this.options();
+      const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+      const grain = Math.max(1, Math.round(options.grain * dpr)) / dpr; // CSS px per texel, snapped to device px
+      const size = this.textureSize;
+      const tileSize = size * grain;
+
+      if (this.mode === "mask") {
+        this.applyMask(options.amount, options.tone).catch(() => {});
+        const step = options.boil > 0 ? Math.floor((time * options.boil) / 1000) : 0;
+        this.lastStep = step;
+        const shiftX = Math.floor(hash01(this.seed + step * 7919) * size);
+        const shiftY = Math.floor(hash01(this.seed + step * 7919 + 1) * size);
+        const style = this.element.style;
+        const maskSize = `${tileSize}px ${tileSize}px`;
+        const maskPosition = `${-shiftX * grain}px ${-shiftY * grain}px`;
+        style.setProperty("-webkit-mask-size", maskSize);
+        style.setProperty("mask-size", maskSize);
+        style.setProperty("-webkit-mask-position", maskPosition);
+        style.setProperty("mask-position", maskPosition);
+        return;
+      }
+
+      const scatter = Math.max(0, options.scatter);
+      const ripple = Math.max(0, options.ripple);
+      const padding = tileSize + (scatter + ripple) * 2 + 2;
+      this.filter.setAttribute("x", String(-padding));
+      this.filter.setAttribute("y", String(-padding));
+      this.filter.setAttribute("width", String(this.width + padding * 2));
+      this.filter.setAttribute("height", String(this.height + padding * 2));
+
+      const step = options.boil > 0 ? Math.floor((time * options.boil) / 1000) : 0;
+      this.lastStep = step;
+      const shiftX = Math.floor(hash01(this.seed + step * 7919) * size);
+      const shiftY = Math.floor(hash01(this.seed + step * 7919 + 1) * size);
+      this.image.setAttribute("x", String(-padding + shiftX * grain));
+      this.image.setAttribute("y", String(-padding + shiftY * grain));
+      this.image.setAttribute("width", String(tileSize));
+      this.image.setAttribute("height", String(tileSize));
+
+      const amount = clamp01(options.amount);
+      const tone = clamp01(options.tone);
+      this.mask.setAttribute("values", `0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  ${MASK_GAIN} 0 0 0 ${1 - MASK_GAIN * amount}`);
+      this.tone.setAttribute("values", `0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 ${tone} 0 ${1 - tone}`);
+      this.displace.setAttribute("scale", String(scatter * 2));
+      this.bend.setAttribute("scale", String(ripple * 2));
+      this.turbulence.setAttribute("baseFrequency", String(1 / Math.max(8, options.rippleSize)));
+      this.turbulence.setAttribute("seed", String(Math.floor(hash01(this.seed + step * 104729) * 1e5)));
+    }
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Write-on scroll timeline
+  // ---------------------------------------------------------------------------------------------
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  const DEFAULT_START = "top 65%";
+  const DEFAULT_END = "top 25%";
+
+  function setupWriteOn(root: HTMLElement) {
+    const text = root.querySelector<HTMLElement>("[data-write-on-text]");
+    const ghost = root.querySelector<HTMLElement>("[data-write-on-ghost]");
+    if (!text || !ghost || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const textSplit = splitWords(text);
+    const ghostSplit = splitWords(ghost);
+    const words = textSplit.words;
+    const ghostWords = ghostSplit.words;
+    if (!words.length || !ghostWords.length) {
+      textSplit.revert();
+      ghostSplit.revert();
+      return;
+    }
+
+    const after = Array.from(root.querySelectorAll<HTMLElement>("[data-write-on-after]"));
+    root.setAttribute("data-active", "");
+
+    const hold = new NoiseHold(ghost, () => readHoldOptions(ghost));
+    hold.start();
+    // Stop boiling once the ghost has fully faded out.
+    const syncHold = (progress: number) => {
+      if (progress >= 1) hold.pause();
+      else hold.resume();
+    };
+
+    const context = gsap.context(() => {
+      const timeline = gsap.timeline({
+        scrollTrigger: {
+          trigger: text,
+          start: root.dataset.start || DEFAULT_START,
+          end: root.dataset.end || DEFAULT_END,
+          scrub: pointerScrub(0.8),
+          onUpdate: (self) => syncHold(self.progress),
+          onRefresh: (self) => syncHold(self.progress),
+        },
+      });
+      gsap.set(words, { opacity: 0 });
+      gsap.set(ghostWords, { opacity: 1 });
+      timeline.to(words, { opacity: 1, stagger: 0.2 }, 0);
+      timeline.to(ghostWords, { opacity: 0, stagger: 0.2 }, 0);
+      if (after.length) {
+        gsap.set(after, { opacity: 0, y: 16 });
+        timeline.to(after, { opacity: 1, y: 0, duration: 0.8 }, ">");
+      }
+    }, root);
+
+    return () => {
+      context.revert();
+      textSplit.revert();
+      ghostSplit.revert();
+      hold.destroy();
+      root.removeAttribute("data-active");
+    };
+  }
+
+  let cleanups: (() => void)[] = [];
+
+  function teardown() {
+    for (const cleanup of cleanups) cleanup();
+    cleanups = [];
+  }
+
+  function init() {
+    teardown();
+    for (const root of document.querySelectorAll<HTMLElement>("[data-write-on]")) {
+      const cleanup = setupWriteOn(root);
+      if (cleanup) cleanups.push(cleanup);
+    }
+  }
+
+  document.addEventListener("astro:page-load", init);
+  document.addEventListener("astro:before-swap", teardown);
+</script>
+
+<style>
+  .write-on__lines {
+    display: grid;
+  }
+  .write-on__lines > p {
+    grid-area: 1/1;
+  }
+  .write-on__ghost {
+    opacity: 0;
+    pointer-events: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .write-on[data-active] .write-on__ghost {
+    opacity: var(--ghost-opacity);
+  }
+</style>

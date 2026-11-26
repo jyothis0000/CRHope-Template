@@ -1,0 +1,180 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-author: "Author", sans-serif;
+  --font-clash: "Clash Grotesk", sans-serif;
+
+  --color-neutral-100: #f2ede4;
+  --color-neutral-200: #e9e2d5;
+  --color-neutral-700: #5b5b5b;
+  --color-neutral-900: #252525;
+  --color-background: #f2ede4;
+
+  --radius-sm: 2.5px;
+  --radius-lg: 4px;
+
+  --breakpoint-3xl: 120rem;
+
+  --text-fluid-14: clamp(0.8125rem, 0.78rem + 0.12vw, 1rem);
+  --text-fluid-16: clamp(0.9375rem, 0.91rem + 0.14vw, 1.125rem);
+  --text-fluid-18: clamp(1rem, 0.96rem + 0.18vw, 1.25rem);
+  --text-fluid-24: clamp(1.125rem, 1.02rem + 0.46vw, 1.75rem);
+  --text-fluid-32: clamp(1.125rem, 1.02rem + 0.82vw, 2.5rem);
+  --text-fluid-48: clamp(1.25rem, 1.1rem + 1.28vw, 3.5rem);
+  --text-fluid-xl: clamp(1.625rem, 1.1092rem + 2.2006vw, 3.75rem);
+  --text-testimonial: clamp(1rem, min(1.02rem + 0.46vw, 0.48rem + 0.91vw), 1.75rem);
+  --text-testimonial-caption: clamp(0.9375rem, var(--text-testimonial) * 0.75, 1.25rem);
+  --text-fluid-2xl: calc(clamp(2.25rem, 1.4612rem + 3.3657vw, 5.5rem) + max(0px, 100vw - 1920px) * 0.01);
+  --text-fluid-3xl: calc(var(--text-fluid-2xl) * 1.4);
+  --leading-fluid-xl: calc(var(--text-fluid-xl) * 0.9);
+  --leading-fluid-2xl: calc(var(--text-fluid-2xl) * 1);
+  --leading-fluid-3xl: calc(var(--leading-fluid-2xl) * 1.1);
+
+  --spacing-site-margin: clamp(1rem, 0.4718rem + 2.2535vw, 2.5rem);
+  --spacing-gutter: clamp(0.75rem, 0.5739rem + 0.7512vw, 1.25rem);
+  --spacing-container: 1440px;
+  --spacing-container-wide: 1920px;
+  --spacing-section-low: clamp(3rem, 2.3rem + 3vw, 5rem);
+  --spacing-section-medium: clamp(4rem, 3rem + 4vw, 7rem);
+  --spacing-section-high: clamp(5rem, 3rem + 8vw, 10rem);
+}
+
+@font-face {
+  font-family: "Author";
+  src: url("../fonts/Author-Variable.woff2") format("woff2");
+  font-weight: 200 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Clash Grotesk";
+  src: url("../fonts/ClashGrotesk-Variable.woff2") format("woff2");
+  font-weight: 200 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+#smooth-wrapper {
+  isolation: isolate;
+  width: 100%;
+}
+
+#smooth-content {
+  width: 100%;
+  overflow: visible;
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+}
+
+/* Type scale: one class per text style. */
+@utility type-clash-semibold-14 {
+  font-family: var(--font-clash);
+  font-size: var(--text-fluid-14);
+  font-weight: 580;
+  line-height: 1.15;
+}
+@utility type-clash-semibold-16 {
+  font-family: var(--font-clash);
+  font-size: var(--text-fluid-16);
+  font-weight: 580;
+  line-height: 1.15;
+}
+@utility type-clash-semibold-18 {
+  font-family: var(--font-clash);
+  font-size: var(--text-fluid-18);
+  font-weight: 580;
+  line-height: 1.15;
+}
+@utility type-clash-semibold-32 {
+  font-family: var(--font-clash);
+  font-size: var(--text-fluid-32);
+  font-weight: 580;
+  line-height: 1.15;
+}
+@utility type-clash-semibold-xl {
+  font-family: var(--font-clash);
+  font-size: var(--text-fluid-xl);
+  font-weight: 580;
+  line-height: var(--leading-fluid-xl);
+}
+@utility type-clash-regular-xl {
+  font-family: var(--font-clash);
+  font-size: var(--text-fluid-xl);
+  font-weight: 400;
+  line-height: var(--leading-fluid-xl);
+}
+@utility type-clash-semibold-2xl {
+  font-family: var(--font-clash);
+  font-size: var(--text-fluid-2xl);
+  font-weight: 580;
+  line-height: var(--leading-fluid-2xl);
+}
+@utility type-clash-semibold-3xl {
+  font-family: var(--font-clash);
+  font-size: var(--text-fluid-3xl);
+  font-weight: 600;
+  line-height: var(--leading-fluid-3xl);
+}
+@utility type-author-semibold-14 {
+  font-family: var(--font-author);
+  font-size: var(--text-fluid-14);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
+  line-height: 1.2;
+}
+@utility type-author-semibold-16 {
+  font-family: var(--font-author);
+  font-size: var(--text-fluid-16);
+  font-weight: 600;
+  line-height: 1.25;
+}
+@utility type-author-semibold-18 {
+  font-family: var(--font-author);
+  font-size: var(--text-fluid-18);
+  font-weight: 600;
+  line-height: 1.25;
+}
+@utility type-author-semibold-24 {
+  font-family: var(--font-author);
+  font-size: var(--text-fluid-24);
+  font-weight: 600;
+  line-height: 1.25;
+}
+@utility type-author-semibold-32 {
+  font-family: var(--font-author);
+  font-size: var(--text-fluid-32);
+  text-transform: uppercase;
+  font-weight: 600;
+  line-height: 1.15;
+}
+@utility type-author-medium-18 {
+  font-family: var(--font-author);
+  font-size: var(--text-fluid-18);
+  color: var(--color-neutral-700);
+  font-weight: 500;
+  line-height: 1.35;
+}
+@utility type-author-medium-24 {
+  font-family: var(--font-author);
+  font-size: var(--text-fluid-24);
+  color: var(--color-neutral-700);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* Line-mask helpers used by the GSAP text reveals. */
+@utility clip-line {
+  transform-origin: top;
+  display: block !important;
+}
+@utility line-wrapper {
+  display: block;
+  overflow: hidden;
+}

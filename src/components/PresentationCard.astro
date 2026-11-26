@@ -1,0 +1,52 @@
+---
+// Bio card. It sizes its type to its own width (container query units) and
+// reveals the role, bio and facts only once the card is wide enough for them.
+// Extra attributes (data-*, aria-*) pass through to the <article>; `class` is appended.
+import type { HTMLAttributes } from "astro/types";
+
+type Props = HTMLAttributes<"article">;
+
+const { class: className, ...rest } = Astro.props;
+
+const facts = [
+  { term: "Based in", detail: "Madrid, Spain" },
+  { term: "Speaks", detail: "Danish, Spanish, English" },
+];
+---
+
+<article class:list={["@container overflow-hidden rounded-lg bg-neutral-900/5 text-neutral-900", className]} {...rest}>
+  <div class="presentation-card__inner flex size-full flex-col justify-between max-md:gap-8">
+    <header class="flex flex-col gap-2 @sm:gap-3">
+      <h3 class="presentation-card__name type-author-semibold-32">Lucas B. Jeppesen</h3>
+      <p class="presentation-card__role hidden type-author-medium-18 @[9rem]:block">Founder · Designer &amp; developer</p>
+    </header>
+    <div class="flex flex-col gap-6">
+      <p class="hidden type-author-medium-18 @[18rem]:block">
+        Half-Danish, half-Spanish designer and developer based in Madrid. I take every project from brand strategy to the last
+        line of code, so nothing gets lost between design and build.
+      </p>
+      <dl class="hidden gap-gutter border-t border-neutral-900/15 pt-4 @sm:grid @sm:grid-cols-2">
+        {
+          facts.map(({ term, detail }) => (
+            <div class="flex flex-col gap-1">
+              <dt class="type-author-semibold-16">{term}</dt>
+              <dd class="type-author-medium-18">{detail}</dd>
+            </div>
+          ))
+        }
+      </dl>
+    </div>
+  </div>
+</article>
+
+<style>
+  .presentation-card__inner {
+    padding: clamp(0.5rem, 8cqi, 2.5rem);
+  }
+  .presentation-card__name {
+    font-size: min(var(--text-fluid-32), 11cqi);
+  }
+  .presentation-card__role {
+    font-size: min(var(--text-fluid-18), 7cqi);
+  }
+</style>

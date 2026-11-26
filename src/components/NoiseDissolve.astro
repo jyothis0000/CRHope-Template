@@ -1,0 +1,92 @@
+---
+/**
+ * <noise-dissolve>: wraps an <img> or inline <svg> that dissolves through noise on hover
+ * (and optionally assembles on scroll with `data-reveal`). Every attribute passes through, so set
+ * the options as data-* directly: data-variant="dissolve|sweep|static", data-amount, data-out, data-in,
+ * data-fps, data-boil, data-grain, data-tone, data-scatter, data-hover="false", data-reveal,
+ * data-trigger="<selector of an ancestor that starts the hover>".
+ */
+import type { HTMLAttributes } from "astro/types";
+
+type Props = HTMLAttributes<"div">;
+---
+
+<noise-dissolve {...Astro.props}><slot /></noise-dissolve>
+
+<script>
+  import { NoiseDissolve, prefersReducedMotion, readNoiseOptions } from "../scripts/lib/noiseDissolve";
+
+  class NoiseDissolveElement extends HTMLElement {
+    effect?: NoiseDissolve;
+    controller?: AbortController;
+    observer?: IntersectionObserver;
+
+    connectedCallback() {
+      if (this.effect) return;
+      const source = this.querySelector<HTMLImageElement | SVGSVGElement>("img, svg");
+      if (!source) return;
+      this.effect = new NoiseDissolve(this, source, () => readNoiseOptions(this));
+      this.controller = new AbortController();
+      const { signal } = this.controller;
+
+      if (this.dataset.hover !== "false") {
+        const selector = this.dataset.trigger;
+        const trigger = (selector && this.closest(selector)) || this;
+        trigger.addEventListener(
+          "pointerenter",
+          (event) => {
+            if ((event as PointerEvent).pointerType !== "touch") this.enter();
+          },
+          { signal },
+        );
+        trigger.addEventListener("pointerleave", () => this.leave(), { signal });
+        trigger.addEventListener("pointercancel", () => this.leave(), { signal });
+      }
+
+      if (this.hasAttribute("data-reveal") && !prefersReducedMotion()) {
+        this.effect.conceal();
+        this.observer = new IntersectionObserver(
+          (entries) => {
+            if (!entries.some((entry) => entry.isIntersecting)) return;
+            this.observer?.disconnect();
+            this.assemble();
+          },
+          { threshold: 0.4 },
+        );
+        this.observer.observe(this);
+      }
+    }
+
+    disconnectedCallback() {
+      this.controller?.abort();
+      this.observer?.disconnect();
+      this.effect?.destroy();
+      this.effect = undefined;
+    }
+
+    enter() {
+      this.effect?.enter();
+    }
+
+    leave() {
+      this.effect?.leave();
+    }
+
+    pulse() {
+      this.effect?.pulse();
+    }
+
+    assemble() {
+      this.effect?.assemble();
+    }
+  }
+
+  customElements.get("noise-dissolve") || customElements.define("noise-dissolve", NoiseDissolveElement);
+</script>
+
+<style is:global>
+  noise-dissolve {
+    display: block;
+    position: relative;
+  }
+</style>

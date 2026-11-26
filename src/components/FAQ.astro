@@ -1,0 +1,232 @@
+---
+// FAQ accordion in a dark section, plus matching FAQPage structured data.
+// Answers are trusted HTML (they may contain links).
+import DarkReveal from "./DarkReveal.astro";
+
+const faqs = [
+  {
+    question: "Am I a good fit for Jeppesen?",
+    answer:
+      "If your work is better than your brand and website make it look, yes. We work best with detail-driven businesses that sell on quality: studios, makers, specialist brands and premium services.",
+  },
+  {
+    question: "How much does a brand and website project cost?",
+    answer:
+      'Our complete brand and website package starts at €8,000. Extras like ecommerce, social media templates or a custom dashboard are quoted per project, since every business needs something different. For a rough budget before we talk, try our <a href="/tools/branding-and-website-pricing-calculator/" class="underline underline-offset-4 !text-neutral-100">branding &amp; website budget calculator</a>.',
+  },
+  {
+    question: "Is it worth the investment?",
+    answer:
+      "A brand and website should bring in better clients, not just look good. Past projects have reached a 19% visitor-to-enquiry rate for Aboutwrap and supported 45.8% year-over-year revenue growth for The Pichichi Company. Every business is different, but that's the standard we work to.",
+  },
+  {
+    question: "Isn't one person riskier than hiring an agency?",
+    answer:
+      "Usually it's the opposite. You work directly with the person designing and building your project, so nothing gets lost between account managers and departments. We take on one project at a time, and bring in trusted specialists for things like illustration or imagery when a project needs it.",
+  },
+  {
+    question: "How long does a project take?",
+    answer:
+      "Usually 8 to 12 weeks from kickoff to launch. Most of the variation comes from how quickly feedback and approvals come back.",
+  },
+  {
+    question: "How much of my time will it take?",
+    answer:
+      "Not much. You'll join a kickoff session, give feedback at a few key moments, and approve the design before we build it. We write the copy and prepare the images, so you don't need content ready.",
+  },
+  {
+    question: "What if I don't like the result?",
+    answer:
+      "We keep refining until you're genuinely happy. There's no fixed number of revision rounds within the agreed scope. The goal is the best possible result, not ticking off rounds.",
+  },
+  {
+    question: "My brand is already strong. Can you just do the website?",
+    answer:
+      "Yes. If your identity is solid and up to date, we can focus on what's missing: web design and development, development from an existing design, or motion to bring your brand to life.",
+  },
+  {
+    question: "Can I update the website myself?",
+    answer:
+      "Yes. Every site comes with a custom Sanity CMS, so you can edit text, images and projects without touching code. We show you how at handover.",
+  },
+  {
+    question: "How do we get started?",
+    answer:
+      "Book a 30-minute call. We'll talk about your business and whether we're the right fit. We take on one project at a time and book projects in order, so it's worth reaching out early.",
+  },
+];
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqs.map(({ question, answer }) => ({
+    "@type": "Question",
+    name: question,
+    acceptedAnswer: { "@type": "Answer", text: answer },
+  })),
+};
+// Escape "<" so nothing in the data can close the <script> early.
+const faqJsonLd = JSON.stringify(faqSchema).replace(/</g, "\\u003c");
+---
+
+<DarkReveal aria-label="Frequently asked questions">
+  <div class="grid grid-cols-12 gap-gutter mx-auto max-w-none w-full">
+    <div class="col-span-12 grid grid-cols-1 gap-x-gutter gap-y-10 lg:col-span-10 lg:col-start-2 lg:grid-cols-10">
+      <!--
+        Visual (cols 2–5 in the design). The photo is IMG_6677 with its
+        colour grade baked in (tuned in /lab/faq-images, see FINAL_GRADE
+        there). Pass another visual in the "visual" slot to replace it.
+        Hidden below lg, so the lazy image is never downloaded on mobile.
+      -->
+      <div data-dark-item aria-hidden="true" class="hidden aspect-[3/4] overflow-hidden rounded-lg bg-neutral-900 lg:col-span-4 lg:block">
+        <slot name="visual">
+          <img
+            src="/faq/faq-desk.webp"
+            srcset="/faq/faq-desk-1000.webp 1000w, /faq/faq-desk.webp 1500w"
+            sizes="30vw"
+            width="1500"
+            height="2000"
+            alt=""
+            loading="lazy"
+            decoding="async"
+            class="h-full w-full object-cover"
+          />
+        </slot>
+      </div>
+      <div class="min-w-0 lg:col-span-6">
+        <h2 data-dark-item="text" class="overflow-hidden type-clash-semibold-32 mb-4">
+          <span data-reveal-inner class="block">Frequently asked questions</span>
+        </h2>
+        <ul data-faq data-dark-item="stagger" data-cta-section="home_faq" class="space-y-1.5">
+          {
+            faqs.map(({ question, answer }, index) => (
+              <li
+                data-dark-child
+                data-faq-item
+                class="rounded-lg border border-neutral-700 transition-colors duration-500 ease-in-out motion-reduce:transition-none hover:bg-neutral-100/5 has-[:focus-visible]:bg-neutral-100/5"
+              >
+                <h3>
+                  <button
+                    type="button"
+                    id={`faq-trigger-${index}`}
+                    data-faq-trigger
+                    aria-expanded="false"
+                    aria-controls={`faq-panel-${index}`}
+                    class="type-author-semibold-16 flex w-full cursor-pointer items-center justify-between gap-6 px-5 py-3 text-left text-neutral-100 transition-[padding] duration-300 ease-in-out motion-reduce:transition-none aria-expanded:pt-5 aria-expanded:pb-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-100"
+                  >
+                    <span>{question}</span>
+                    <span aria-hidden="true" class="relative h-2.5 w-2.5 shrink-0">
+                      <span class="absolute top-1/2 left-0 h-px w-full -translate-y-1/2 bg-current" />
+                      <span
+                        data-faq-icon-v
+                        class="absolute top-0 left-1/2 h-full w-px -translate-x-1/2 bg-current transition-transform duration-300 ease-in-out motion-reduce:transition-none"
+                      />
+                    </span>
+                  </button>
+                </h3>
+                <div
+                  id={`faq-panel-${index}`}
+                  role="region"
+                  aria-labelledby={`faq-trigger-${index}`}
+                  data-faq-panel
+                  class="grid grid-rows-[0fr] transition-[grid-template-rows] duration-300 ease-in-out motion-reduce:transition-none"
+                >
+                  <div class="overflow-hidden">
+                    <p class="type-author-medium-18 !text-neutral-100/75 max-w-[60ch] px-5 pb-5" set:html={answer} />
+                  </div>
+                </div>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </div>
+  </div>
+</DarkReveal>
+<script type="application/ld+json" set:html={faqJsonLd} />
+<!-- Without JavaScript, show every answer. --><noscript
+  ><style is:inline>
+    [data-faq-panel] {
+      grid-template-rows: 1fr !important;
+    }
+  </style></noscript
+>
+
+<script>
+  import { gsap } from "gsap";
+  import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  // How long a panel's open/close transition runs (CSS duration-300 plus slack).
+  const SETTLE_MS = 450;
+
+  function initFaq() {
+    const list = document.querySelector<HTMLElement>("[data-faq]");
+    if (!list || list.dataset.faqReady) return;
+    list.dataset.faqReady = "true";
+    const items = Array.from(list.querySelectorAll<HTMLElement>("[data-faq-item]"));
+    const darkSection = list.closest("[data-dark-reveal]");
+    let settleUntil = 0;
+    let frame = 0;
+
+    // The dark reveal's background tracks the section height, so refresh its
+    // (non-pin) triggers every frame while a panel animates.
+    function refreshSectionTriggers() {
+      if (!darkSection) return;
+      ScrollTrigger.getAll()
+        .filter((trigger) => trigger.trigger === darkSection && !trigger.pin)
+        .forEach((trigger) => trigger.refresh());
+      ScrollTrigger.update();
+    }
+
+    function followHeightChange() {
+      settleUntil = performance.now() + SETTLE_MS;
+      if (frame) return;
+      const tick = () => {
+        refreshSectionTriggers();
+        if (performance.now() < settleUntil) {
+          frame = requestAnimationFrame(tick);
+          return;
+        }
+        frame = 0;
+        ScrollTrigger.refresh();
+      };
+      frame = requestAnimationFrame(tick);
+    }
+
+    // Returns the panel when its state changed, otherwise false.
+    function setOpen(item: HTMLElement, open: boolean) {
+      const trigger = item.querySelector("[data-faq-trigger]");
+      const panel = item.querySelector<HTMLElement>("[data-faq-panel]");
+      const icon = item.querySelector("[data-faq-icon-v]");
+      if (!trigger || !panel) return false;
+      const wasOpen = trigger.getAttribute("aria-expanded") === "true";
+      trigger.setAttribute("aria-expanded", String(open));
+      panel.classList.toggle("grid-rows-[1fr]", open);
+      panel.classList.toggle("grid-rows-[0fr]", !open);
+      icon?.classList.toggle("rotate-90", open);
+      panel.inert = !open;
+      return wasOpen !== open && panel;
+    }
+
+    items.forEach((item) => setOpen(item, false));
+
+    // One answer open at a time: clicking opens this item and closes the rest.
+    items.forEach((item) => {
+      const trigger = item.querySelector("[data-faq-trigger]");
+      trigger?.addEventListener("click", () => {
+        const isOpen = trigger.getAttribute("aria-expanded") === "true";
+        let changed: HTMLElement | false | null = null;
+        for (const other of items) {
+          const result = setOpen(other, other === item && !isOpen);
+          if (result) changed = result;
+        }
+        if (changed) followHeightChange();
+      });
+    });
+  }
+
+  initFaq();
+  document.addEventListener("astro:page-load", initFaq);
+</script>

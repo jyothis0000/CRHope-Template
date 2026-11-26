@@ -1,0 +1,110 @@
+---
+const socialLinks = [
+  { label: "LinkedIn", href: "https://www.linkedin.com/in/lucas-b-jeppesen-147a18304/", cta: "footer_linkedin", external: true },
+  { label: "Tools", href: "/tools/", cta: "footer_tools", external: false },
+];
+
+const quietLinks = [
+  { label: "Website examples directory", href: "/tools/website-examples/", cta: "footer_examples_directory" },
+  { label: "Cookie policy", href: "/cookies/", cta: undefined },
+];
+---
+
+<footer class="z-[1] h-[60vh] w-full bg-neutral-900 sm:h-[80vh]">
+  <div class="flex h-full w-full flex-col justify-between">
+    <div class="flex w-full flex-row justify-between p-site-margin">
+      <section aria-label="Social media links" class="type-clash-semibold-18 text-neutral-100">
+        <ul class="flex flex-col gap-2 sm:flex-row sm:gap-16 max-sm:gap-0">
+          {
+            socialLinks.map(({ label, href, cta, external }) => (
+              <li>
+                <a
+                  href={href}
+                  data-cta={cta}
+                  class="max-sm:inline-block max-sm:py-1.5"
+                  target={external ? "_blank" : undefined}
+                  rel={external ? "noopener noreferrer" : undefined}>{label}</a
+                >
+              </li>
+            ))
+          }
+        </ul>
+      </section>
+      <button
+        id="back-to-top"
+        class="h-[30px] w-[24px] pt-[6px] cursor-pointer max-sm:relative max-sm:before:absolute max-sm:before:-inset-3"
+        aria-label="Back to top"
+      >
+        <svg width="24" height="24" xmlns="http://www.w3.org/2000/svg">
+          <path
+            d="M11.3903 0L0.746123 10.6441L3.51254 13.4106L9.39064 7.53244L9.30312 24.6933L13.2455 24.6784L13.3186 7.53199L19.1524 13.3658L21.9542 10.564L11.3903 0Z"
+            fill="#F2EDE4"></path>
+        </svg>
+      </button>
+    </div>
+    <div id="bottom-content-wrapper">
+      <div
+        class="flex w-full flex-row items-end justify-between px-site-margin py-2 text-neutral-100 max-sm:flex-col max-sm:items-end max-sm:gap-3"
+      >
+        <div class="flex flex-col gap-4 sm:pb-[0.8vw] max-sm:items-end">
+          <!--
+            Deliberately quiet: a crawlable path to the third-party website
+            examples gallery from every page, without promoting it to visitors.
+            Keep it visible (no display:none or sr-only), just small and muted.
+
+            Phones: right-aligned with the email, cookie policy on top.
+          -->
+          <ul
+            class="flex flex-row flex-wrap items-center gap-x-6 gap-y-1 font-author text-xs text-neutral-100/60 max-sm:flex-col-reverse max-sm:items-end max-sm:gap-y-2 max-sm:text-right"
+          >
+            {
+              quietLinks.map(({ label, href, cta }) => (
+                <li>
+                  <a
+                    href={href}
+                    data-cta={cta}
+                    class="underline-offset-4 transition-colors hover:text-neutral-100 hover:underline">{label}</a
+                  >
+                </li>
+              ))
+            }
+          </ul>
+          <p class="hidden font-author leading-[1.35rem] sm:block">
+            Thank you for exploring my work. If you have any questions,<br />ideas, or projects in mind, don’t hesitate to get
+            in touch. I’d love to bring your vision to life.
+          </p>
+        </div>
+        <p
+          class="whitespace-nowrap text-right font-clash text-[3.8vw] leading-[4.6vw] font-medium max-sm:self-end max-sm:text-[6.5vw] max-sm:leading-[1.2]"
+        >
+          lucas@jeppesen.dev
+        </p>
+      </div>
+      <div class="relative aspect-[745/100] w-full place-self-end">
+        <img
+          src="/logo-files/jeppesen-logo-nospace-inverted.svg"
+          alt="Jeppesen logo"
+          class="absolute inset-0 h-full w-full object-cover"
+          loading="lazy"
+        />
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Back to top: through the smoother when it's active, native scroll otherwise.
+  // ponytail: only the static ScrollSmoother.get() is used; Layout registers the plugin.
+  import { ScrollSmoother } from "gsap/ScrollSmoother";
+
+  document.addEventListener("click", (event) => {
+    if (!(event.target as Element | null)?.closest?.("#back-to-top")) return;
+    const smoother = ScrollSmoother.get();
+    if (smoother) {
+      smoother.scrollTo(0, true);
+      return;
+    }
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: 0, behavior: reducedMotion ? "auto" : "smooth" });
+  });
+</script>

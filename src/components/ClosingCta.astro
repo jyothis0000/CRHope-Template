@@ -1,0 +1,584 @@
+---
+import CtaButton from "./CtaButton.astro";
+import WriteOnText from "./WriteOnText.astro";
+---
+
+<section
+  aria-label="Book a call"
+  data-cta-section="home_closing_cta"
+  data-noise-trail
+  data-trail-grain="0.5"
+  data-trail-radius="76"
+  data-trail-spread="0.05"
+  data-trail-grit="0.4"
+  data-trail-fade="260"
+  data-trail-density="0.6"
+  data-trail-opacity="0.55"
+  data-trail-tone="0.5"
+  data-trail-scatter="8"
+  data-trail-boil="14"
+  data-trail-fps="30"
+  class="relative isolate flex min-h-svh items-center bg-neutral-100 px-site-margin py-section-high"
+>
+  <!-- Above the trail canvas, which the script prepends at z-index 0. -->
+  <div class="grid grid-cols-12 gap-gutter mx-auto max-w-none relative z-1 w-full">
+    <WriteOnText
+      class="col-start-2 col-end-12 w-full max-w-350 justify-self-center text-center max-md:col-start-1 max-md:col-end-13"
+      start="top 85%"
+      end="center 45%"
+      text="Let’s close the gap between how good you are and how good you look."
+    >
+      <CtaButton
+        label="Book a 30-minute call"
+        href="https://cal.com/lucasbjeppesen/30min-english?lang=en"
+        variant="black"
+        size="lg"
+        icon
+        data-cta="home_cta_book_call"
+        target="_blank"
+        rel="noopener noreferrer"
+      />
+    </WriteOnText>
+  </div>
+</section>
+
+<script>
+  // Noise trail: the pointer scuffs a grainy, boiling smudge into the section that fades away.
+  // A coarse grid of "tiles" holds the trail strength (field); each frame the field is bilinearly
+  // upsampled per canvas pixel and thresholded against the noise field into grain.
+  import { clamp01, hash01, loadNoiseField, prefersReducedMotion } from "../scripts/lib/noiseDissolve";
+  import type { NoiseField } from "../scripts/lib/noiseDissolve";
+  import { hasFinePointer } from "../scripts/lib/pointer";
+
+  const TRAIL_DEFAULTS = {
+    grain: 0.5, // canvas pixel size in CSS px
+    radius: 64, // brush radius in CSS px
+    spread: 0.5, // sideways wobble of the brush path, as a share of the radius
+    grit: 0.4, // how unevenly the brush wears (patchiness)
+    fade: 260, // decay time constant in ms
+    density: 0.6,
+    opacity: 0.55,
+    tone: 0.5,
+    scatter: 8, // grain flicker along the threshold edge
+    boil: 14, // noise re-rolls per second
+    fps: 30,
+  };
+  type TrailOptions = typeof TRAIL_DEFAULTS;
+
+  const MAX_DPR = 2;
+  const MAX_PIXELS = 2.6e6; // canvas pixel budget; grain gets coarser beyond it
+  const TILE_PX = 8; // target tile size in CSS px
+  const MIN_FIELD = 0.012; // field strength treated as zero
+  const FULL_SPEED = 1.2; // px/ms at which the brush reaches full size
+  const STAMP_SPACING = 0.15; // distance between stamps, as a share of the radius
+  const WOBBLE_PERIOD = 3; // path length (in radii) per wobble cycle
+  const MIN_STAMP_SCALE = 0.55;
+  const EDGE_PERIOD = 2.6; // edge-noise period, in multiples of TILE_PX
+  const EDGE_BITE = 0.65; // how far ragged edges eat into the brush falloff
+  const LIFE_RANGE = [0.75, 1.3]; // per-tile multiplier of the fade time
+
+  const smoothstep = (t: number) => t * t * (3 - 2 * t);
+
+  /** 2D value noise in [0, 1). */
+  function valueNoise(x: number, y: number, seed: number) {
+    const x0 = Math.floor(x);
+    const y0 = Math.floor(y);
+    const sx = smoothstep(x - x0);
+    const sy = smoothstep(y - y0);
+    const corner = (cx: number, cy: number) => hash01(seed + Math.imul(cx, 73856093) + Math.imul(cy, 19349663));
+    const top = corner(x0, y0) + (corner(x0 + 1, y0) - corner(x0, y0)) * sx;
+    const bottom = corner(x0, y0 + 1) + (corner(x0 + 1, y0 + 1) - corner(x0, y0 + 1)) * sx;
+    return top + (bottom - top) * sy;
+  }
+
+  /** Two octaves of value noise. */
+  function fbm(x: number, y: number, seed: number) {
+    return valueNoise(x, y, seed) * 0.65 + valueNoise(x * 2.7, y * 2.7, seed + 1013) * 0.35;
+  }
+
+  function parseRgb(color: string): [number, number, number] {
+    const match = color.match(/rgba?\(([\d.]+),?\s*([\d.]+),?\s*([\d.]+)/);
+    return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : [37, 37, 37];
+  }
+
+  /** data-trail-grain, data-trail-radius, … */
+  function readTrailOptions(element: HTMLElement): Partial<TrailOptions> {
+    const options: Partial<TrailOptions> = {};
+    for (const key of Object.keys(TRAIL_DEFAULTS) as (keyof TrailOptions)[]) {
+      const raw = element.dataset[`trail${key[0].toUpperCase()}${key.slice(1)}`];
+      if (raw === undefined || raw === "") continue;
+      const value = Number(raw);
+      if (Number.isFinite(value)) options[key] = value;
+    }
+    return options;
+  }
+
+  interface Box {
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+  }
+  const emptyBox = (): Box => ({ x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity });
+  const isEmpty = (box: Box) => box.x1 < box.x0 || box.y1 < box.y0;
+  function extend(box: Box, x: number, y: number) {
+    if (x < box.x0) box.x0 = x;
+    if (x > box.x1) box.x1 = x;
+    if (y < box.y0) box.y0 = y;
+    if (y > box.y1) box.y1 = y;
+  }
+
+  interface Layout {
+    width: number;
+    height: number;
+    cell: number; // canvas pixel size in CSS px
+    cols: number;
+    rows: number;
+    tile: number; // tile size in canvas pixels
+    tilesX: number;
+    tilesY: number;
+    // Per tile corner ((tilesX + 1) × (tilesY + 1)):
+    field: Float32Array; // trail strength
+    wear: Float32Array; // max strength the brush can reach here
+    edge: Float32Array; // raggedness of the brush edge
+    life: Float32Array; // fade time multiplier
+    painted: Uint8Array; // per tile: has non-empty pixels on the canvas
+    image: ImageData;
+    pixels: Uint32Array;
+  }
+
+  type Point = { x: number; y: number };
+
+  class NoiseTrail {
+    element: HTMLElement;
+    options: TrailOptions;
+    canvas: HTMLCanvasElement;
+    context: CanvasRenderingContext2D;
+    noise: NoiseField | null = null;
+    layout: Layout | null = null;
+    color: [number, number, number] = [37, 37, 37];
+    pointer: Point | null = null;
+    last: Point | null = null;
+    untilNext = 0; // distance left until the next stamp
+    odometer = 0; // total brush travel
+    active = emptyBox(); // tile corners with a non-zero field
+    paintedBox = emptyBox(); // tiles with pixels on the canvas
+    inView = false;
+    moving = false;
+    frame = 0;
+    lastTime = 0;
+    lastStep = NaN;
+    destroyed = false;
+    resize: ResizeObserver;
+    intersection: IntersectionObserver;
+    seed = Math.floor(Math.random() * 1e6);
+
+    constructor(element: HTMLElement, options: Partial<TrailOptions> = {}) {
+      this.element = element;
+      this.options = { ...TRAIL_DEFAULTS, ...options };
+      this.canvas = document.createElement("canvas");
+      this.canvas.setAttribute("aria-hidden", "true");
+      Object.assign(this.canvas.style, {
+        position: "absolute",
+        left: "0",
+        top: "0",
+        zIndex: "0",
+        pointerEvents: "none",
+        imageRendering: "pixelated",
+        display: "none",
+      });
+      const context = this.canvas.getContext("2d");
+      if (!context) throw Error("2D canvas unavailable");
+      this.context = context;
+      if (getComputedStyle(element).position === "static") element.style.position = "relative";
+      element.prepend(this.canvas);
+
+      window.addEventListener("pointermove", this.onMove, { passive: true });
+      window.addEventListener("scroll", this.onScroll, { passive: true });
+      document.documentElement.addEventListener("mouseleave", this.onLeave);
+      this.resize = new ResizeObserver(() => {
+        if (this.layout) this.reset();
+      });
+      this.resize.observe(element);
+      this.intersection = new IntersectionObserver((entries) => {
+        this.inView = entries.some((entry) => entry.isIntersecting);
+        if (this.inView) this.wake();
+      });
+      this.intersection.observe(element);
+      loadNoiseField()
+        .then((noise) => {
+          this.noise = noise;
+        })
+        .catch(() => {});
+    }
+
+    destroy() {
+      this.destroyed = true;
+      cancelAnimationFrame(this.frame);
+      this.frame = 0;
+      window.removeEventListener("pointermove", this.onMove);
+      window.removeEventListener("scroll", this.onScroll);
+      document.documentElement.removeEventListener("mouseleave", this.onLeave);
+      this.resize.disconnect();
+      this.intersection.disconnect();
+      this.canvas.remove();
+      this.layout = null;
+    }
+
+    onMove = (event: PointerEvent) => {
+      if (event.pointerType === "touch") return;
+      this.pointer = { x: event.clientX, y: event.clientY };
+      this.wake();
+    };
+
+    // Scrolling moves the section under a resting pointer, which also draws.
+    onScroll = () => {
+      if (this.pointer) this.wake();
+    };
+
+    onLeave = () => {
+      this.pointer = null;
+      this.last = null;
+    };
+
+    wake() {
+      if (this.destroyed || this.frame || !this.inView || !this.noise) return;
+      this.lastTime = performance.now();
+      this.frame = requestAnimationFrame(this.tick);
+    }
+
+    reset() {
+      this.layout = null;
+      this.last = null;
+      this.untilNext = 0;
+      this.active = emptyBox();
+      this.paintedBox = emptyBox();
+      this.canvas.style.display = "none";
+    }
+
+    measure(): Layout | null {
+      const width = this.element.offsetWidth;
+      const height = this.element.offsetHeight;
+      if (width < 1 || height < 1) return null;
+      if (this.layout?.width === width && this.layout.height === height) return this.layout;
+
+      const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+      let devicePixels = Math.max(1, Math.round(this.options.grain * dpr));
+      let cell = devicePixels / dpr;
+      while (Math.ceil(width / cell) * Math.ceil(height / cell) > MAX_PIXELS) {
+        devicePixels += 1;
+        cell = devicePixels / dpr;
+      }
+      const cols = Math.ceil(width / cell);
+      const rows = Math.ceil(height / cell);
+      const tile = Math.max(2, Math.round(TILE_PX / cell));
+      const tilesX = Math.ceil(cols / tile);
+      const tilesY = Math.ceil(rows / tile);
+
+      this.canvas.width = cols;
+      this.canvas.height = rows;
+      Object.assign(this.canvas.style, { width: `${cols * cell}px`, height: `${rows * cell}px` });
+      const image = this.context.createImageData(cols, rows);
+      this.color = parseRgb(getComputedStyle(this.element).color);
+      this.active = emptyBox();
+      this.paintedBox = emptyBox();
+
+      const corners = (tilesX + 1) * (tilesY + 1);
+      const wear = new Float32Array(corners);
+      const edge = new Float32Array(corners);
+      const life = new Float32Array(corners);
+      const grit = clamp01(this.options.grit);
+      const wearPeriod = 56 / (tile * cell); // ≈ 56 CSS px, in tiles
+      const edgePeriod = (EDGE_PERIOD * TILE_PX) / (tile * cell);
+      const [minLife, maxLife] = LIFE_RANGE;
+      for (let y = 0, index = 0; y <= tilesY; y++) {
+        for (let x = 0; x <= tilesX; x++, index++) {
+          const worn = smoothstep(clamp01((fbm(x / wearPeriod, y / wearPeriod, this.seed) - 0.22) / 0.56));
+          wear[index] = 1 - grit * (1 - worn);
+          const ragged = fbm(x / edgePeriod, y / edgePeriod, this.seed + 3131);
+          edge[index] = clamp01((ragged - 0.15) / 0.7);
+          const lifeNoise = fbm(x / wearPeriod, y / wearPeriod, this.seed + 7777);
+          life[index] = minLife + (maxLife - minLife) * lifeNoise;
+        }
+      }
+
+      this.layout = {
+        width,
+        height,
+        cell,
+        cols,
+        rows,
+        tile,
+        tilesX,
+        tilesY,
+        field: new Float32Array(corners),
+        wear,
+        edge,
+        life,
+        painted: new Uint8Array(tilesX * tilesY),
+        image,
+        pixels: new Uint32Array(image.data.buffer),
+      };
+      return this.layout;
+    }
+
+    tick = (time: number) => {
+      this.frame = 0;
+      if (this.destroyed) return;
+      const layout = this.measure();
+      if (!layout || !this.noise) return;
+      const delta = Math.min(100, Math.max(0, time - this.lastTime));
+      this.lastTime = time;
+      this.decay(layout, delta);
+      this.travel(layout, delta);
+
+      const { fps } = this.options;
+      let due = true;
+      if (fps > 0) {
+        const step = Math.floor((time * fps) / 1000);
+        due = step !== this.lastStep;
+        if (due) this.lastStep = step;
+      }
+      if (due) this.draw(layout, time);
+
+      if (this.inView && (this.moving || !isEmpty(this.active) || !isEmpty(this.paintedBox))) {
+        this.frame = requestAnimationFrame(this.tick);
+      } else if (isEmpty(this.paintedBox)) {
+        this.canvas.style.display = "none";
+      }
+    };
+
+    /** Exponential fade of the field; shrinks the active box to what is still alive. */
+    decay(layout: Layout, delta: number) {
+      if (isEmpty(this.active)) return;
+      const { field, life, tilesX } = layout;
+      const stride = tilesX + 1;
+      const fade = Math.max(1, this.options.fade);
+      const next = emptyBox();
+      const { x0, y0, x1, y1 } = this.active;
+      for (let y = y0; y <= y1; y++) {
+        for (let x = x0; x <= x1; x++) {
+          const index = y * stride + x;
+          if (field[index] === 0) continue;
+          const value = field[index] * Math.exp(-delta / (fade * life[index]));
+          if (value < MIN_FIELD) {
+            field[index] = 0;
+            continue;
+          }
+          field[index] = value;
+          extend(next, x, y);
+        }
+      }
+      this.active = next;
+    }
+
+    /** Follows the pointer (in element space) and scuffs along the segment since the last frame. */
+    travel(layout: Layout, delta: number) {
+      this.moving = false;
+      if (!this.pointer) {
+        this.last = null;
+        return;
+      }
+      const rect = this.element.getBoundingClientRect();
+      const scaleX = rect.width ? layout.width / rect.width : 1;
+      const scaleY = rect.height ? layout.height / rect.height : 1;
+      const point = { x: (this.pointer.x - rect.left) * scaleX, y: (this.pointer.y - rect.top) * scaleY };
+      const inside = point.x >= 0 && point.y >= 0 && point.x <= layout.width && point.y <= layout.height;
+      const previous = this.last;
+      this.last = inside ? point : null;
+      if (!inside || !previous) return;
+      const distance = Math.hypot(point.x - previous.x, point.y - previous.y);
+      if (distance < 0.5) return;
+      this.moving = true;
+      const speed = clamp01(distance / Math.max(1, delta) / FULL_SPEED);
+      this.scuff(layout, previous, point, distance, speed);
+    }
+
+    /** Lays evenly spaced, wobbling, size-varying stamps along a segment. Faster = bigger brush. */
+    scuff(layout: Layout, from: Point, to: Point, distance: number, speed: number) {
+      const radius = this.options.radius * (0.75 + 0.25 * speed);
+      const spacing = Math.max(2, radius * STAMP_SPACING);
+      const wobble = radius * Math.max(0, this.options.spread);
+      let along = Math.min(this.untilNext, spacing);
+      while (along <= distance) {
+        const t = along / distance;
+        const phase = (this.odometer + along) / (radius * WOBBLE_PERIOD);
+        const scale = MIN_STAMP_SCALE + (1 - MIN_STAMP_SCALE) * valueNoise(phase, 0.5, this.seed + 404);
+        const offsetX = (valueNoise(phase, 3.5, this.seed + 808) * 2 - 1) * wobble;
+        const offsetY = (valueNoise(phase, 6.5, this.seed + 909) * 2 - 1) * wobble;
+        this.stamp(
+          layout,
+          from.x + (to.x - from.x) * t + offsetX,
+          from.y + (to.y - from.y) * t + offsetY,
+          radius * scale,
+        );
+        along += spacing;
+      }
+      this.odometer += distance;
+      this.untilNext = along - distance;
+    }
+
+    /** Raises the field inside a ragged disc (max-blend, never lowers it). */
+    stamp(layout: Layout, x: number, y: number, radius: number) {
+      const { field, wear, edge, tilesX, tilesY, tile, cell } = layout;
+      const stride = tilesX + 1;
+      const tileSize = tile * cell;
+      const centerX = x / tileSize;
+      const centerY = y / tileSize;
+      const r = Math.max(0.75, radius / tileSize);
+      const minX = Math.max(0, Math.ceil(centerX - r));
+      const maxX = Math.min(tilesX, Math.floor(centerX + r));
+      const minY = Math.max(0, Math.ceil(centerY - r));
+      const maxY = Math.min(tilesY, Math.floor(centerY + r));
+      if (minX > maxX || minY > maxY) return;
+      const radiusSquared = r * r;
+      for (let ty = minY; ty <= maxY; ty++) {
+        const dy = ty - centerY;
+        for (let tx = minX; tx <= maxX; tx++) {
+          const dx = tx - centerX;
+          const distanceSquared = dx * dx + dy * dy;
+          if (distanceSquared >= radiusSquared) continue;
+          const index = ty * stride + tx;
+          const falloff = 1 - Math.sqrt(distanceSquared) / r;
+          const bite = EDGE_BITE * edge[index];
+          if (falloff <= bite) continue;
+          const value = Math.sqrt((falloff - bite) / (1 - bite)) * wear[index];
+          if (value > field[index]) field[index] = value;
+        }
+      }
+      extend(this.active, minX, minY);
+      extend(this.active, maxX, maxY);
+    }
+
+    /** Rasterises the dirty tiles: upsample field, threshold against boiling noise, write ABGR pixels. */
+    draw(layout: Layout, time: number) {
+      const noise = this.noise;
+      if (!noise) return;
+      const { cols, rows, tile, tilesX, tilesY, field, painted, pixels } = layout;
+      const stride = tilesX + 1;
+      const { density, opacity, tone, scatter, boil } = this.options;
+
+      // Tiles to redraw: around the live field (a corner touches the tiles on both sides) plus what is painted now.
+      const region = emptyBox();
+      if (!isEmpty(this.active)) {
+        region.x0 = Math.max(0, this.active.x0 - 1);
+        region.y0 = Math.max(0, this.active.y0 - 1);
+        region.x1 = Math.min(tilesX - 1, this.active.x1);
+        region.y1 = Math.min(tilesY - 1, this.active.y1);
+      }
+      if (!isEmpty(this.paintedBox)) {
+        region.x0 = Math.min(region.x0, this.paintedBox.x0);
+        region.y0 = Math.min(region.y0, this.paintedBox.y0);
+        region.x1 = Math.max(region.x1, this.paintedBox.x1);
+        region.y1 = Math.max(region.y1, this.paintedBox.y1);
+      }
+      if (isEmpty(region)) return;
+
+      const size = noise.size;
+      const values = noise.values;
+      const sizeMask = size - 1;
+      const powerOfTwo = (size & sizeMask) === 0;
+      const wrap = (n: number) => (powerOfTwo ? n & sizeMask : n % size);
+      const boilStep = boil > 0 ? Math.floor((time * boil) / 1000) : 0;
+      const frameSeed = this.seed + boilStep * 7919;
+      const grainShiftX = Math.floor(hash01(frameSeed) * size);
+      const grainShiftY = Math.floor(hash01(frameSeed + 1) * size);
+      const toneShiftX = Math.floor(hash01(frameSeed + 2) * size);
+      const toneShiftY = Math.floor(hash01(frameSeed + 3) * size);
+      const flickerSeed = Math.imul(frameSeed, 2654435761);
+      const densityClamped = clamp01(density);
+      const alphaMax = clamp01(opacity) * 255;
+      const toneClamped = clamp01(tone);
+      const flipChance = Math.min(0.45, Math.max(0, scatter) * 0.03);
+      const flipBand = Math.max(0.001, 0.12 * Math.min(1, scatter / 10));
+      const [red, green, blue] = this.color;
+      const rgb = (blue << 16) | (green << 8) | red; // little-endian ABGR without alpha
+      const nextPainted = emptyBox();
+      const invTile = 1 / tile;
+
+      for (let ty = region.y0; ty <= region.y1; ty++) {
+        for (let tx = region.x0; tx <= region.x1; tx++) {
+          const tileIndex = ty * tilesX + tx;
+          const topLeft = field[ty * stride + tx];
+          const topRight = field[ty * stride + tx + 1];
+          const bottomLeft = field[(ty + 1) * stride + tx];
+          const bottomRight = field[(ty + 1) * stride + tx + 1];
+          const px0 = tx * tile;
+          const py0 = ty * tile;
+          const px1 = Math.min(cols, px0 + tile);
+          const py1 = Math.min(rows, py0 + tile);
+
+          if (topLeft < MIN_FIELD && topRight < MIN_FIELD && bottomLeft < MIN_FIELD && bottomRight < MIN_FIELD) {
+            if (painted[tileIndex]) {
+              for (let py = py0; py < py1; py++) pixels.fill(0, py * cols + px0, py * cols + px1);
+              painted[tileIndex] = 0;
+            }
+            continue;
+          }
+
+          let anyPixel = false;
+          for (let py = py0; py < py1; py++) {
+            const ry = (py - py0 + 0.5) * invTile;
+            const left = topLeft + (bottomLeft - topLeft) * ry;
+            const right = topRight + (bottomRight - topRight) * ry;
+            const grainRow = wrap(py + grainShiftY) * size;
+            const toneRow = wrap(py + toneShiftY) * size;
+            let index = py * cols + px0;
+            for (let px = px0; px < px1; px++, index++) {
+              const rx = (px - px0 + 0.5) * invTile;
+              const strength = (left + (right - left) * rx) * densityClamped;
+              if (strength < MIN_FIELD * densityClamped) {
+                pixels[index] = 0;
+                continue;
+              }
+              const margin = strength - values[grainRow + wrap(px + grainShiftX)];
+              let on = margin > 0;
+              // Near the threshold, randomly flip pixels so the edge crackles.
+              if (flipChance > 0 && Math.abs(margin) < flipBand) {
+                let h = Math.imul(index ^ flickerSeed, 2146121005);
+                h ^= h >>> 15;
+                const closeness = 1 - Math.abs(margin) / flipBand;
+                if ((h >>> 0) / 4294967296 < flipChance * closeness) on = !on;
+              }
+              if (!on) {
+                pixels[index] = 0;
+                continue;
+              }
+              const alpha = (alphaMax * (1 - toneClamped * (1 - values[toneRow + wrap(px + toneShiftX)]))) | 0;
+              pixels[index] = alpha > 0 ? ((alpha << 24) | rgb) >>> 0 : 0;
+              anyPixel = true;
+            }
+          }
+          painted[tileIndex] = anyPixel ? 1 : 0;
+          if (anyPixel) extend(nextPainted, tx, ty);
+        }
+      }
+
+      const dirtyX = region.x0 * tile;
+      const dirtyY = region.y0 * tile;
+      const dirtyWidth = Math.min(cols, (region.x1 + 1) * tile) - dirtyX;
+      const dirtyHeight = Math.min(rows, (region.y1 + 1) * tile) - dirtyY;
+      this.context.putImageData(layout.image, 0, 0, dirtyX, dirtyY, dirtyWidth, dirtyHeight);
+      this.paintedBox = nextPainted;
+      if (!isEmpty(nextPainted)) this.canvas.style.display = "block";
+    }
+  }
+
+  let trails: NoiseTrail[] = [];
+
+  function destroyTrails() {
+    for (const trail of trails) trail.destroy();
+    trails = [];
+  }
+
+  function initTrails() {
+    destroyTrails();
+    if (!hasFinePointer() || prefersReducedMotion()) return;
+    for (const element of document.querySelectorAll<HTMLElement>("[data-noise-trail]")) {
+      trails.push(new NoiseTrail(element, readTrailOptions(element)));
+    }
+  }
+
+  document.addEventListener("astro:page-load", initTrails);
+  document.addEventListener("astro:before-swap", destroyTrails);
+</script>

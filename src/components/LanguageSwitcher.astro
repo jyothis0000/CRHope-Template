@@ -1,0 +1,297 @@
+---
+/**
+ * Language dropdown in the menu. Links are full page loads (data-astro-reload):
+ * each language has its own persisted header. After every navigation the hrefs
+ * are refreshed from the page's #language-links JSON (rendered by Layout).
+ */
+const current = "en";
+const languages = [
+  { code: "en", name: "English", href: "/" },
+  { code: "da", name: "Dansk", href: "/da/" },
+  { code: "es", name: "Español", href: "/es/" },
+];
+const currentLanguage = languages.find((language) => language.code === current)!;
+---
+
+<language-switcher class="relative block">
+  <button
+    type="button"
+    class="language-toggle type-author-semibold-16"
+    aria-expanded="false"
+    aria-controls="language-menu"
+    aria-label={`Change language, current: ${currentLanguage.name}`}
+    data-language-toggle
+    data-cta="menu_language"
+  >
+    <span>{current.toUpperCase()}</span><svg
+      class="language-caret"
+      viewBox="0 0 10 6"
+      width="10"
+      height="6"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5"></path>
+    </svg>
+  </button>
+  <ul id="language-menu" class="language-menu" aria-label="Language" data-language-menu hidden>
+    {
+      languages.map(({ code, name, href }) => (
+        <li>
+          <a
+            href={href}
+            hreflang={code}
+            lang={code}
+            aria-current={code === current ? "true" : undefined}
+            class="language-option type-author-semibold-16"
+            data-language-link={code}
+            data-same-page="true"
+            data-cta="menu_language_option"
+            data-astro-reload
+          >
+            <span class="language-name">{name}</span>
+            <span class="language-code" aria-hidden="true">{code.toUpperCase()}</span>
+          </a>
+        </li>
+      ))
+    }
+  </ul>
+</language-switcher>
+
+<script>
+  class LanguageSwitcher extends HTMLElement {
+    cleanup?: () => void;
+
+    connectedCallback() {
+      if (this.cleanup) return;
+      const toggle = this.querySelector<HTMLElement>("[data-language-toggle]");
+      const menu = this.querySelector<HTMLElement>("[data-language-menu]");
+      const links = [...this.querySelectorAll<HTMLAnchorElement>("[data-language-link]")];
+      if (!toggle || !menu) return;
+
+      const controller = new AbortController();
+      const { signal } = controller;
+
+      const isOpen = () => !menu.hidden;
+      const setOpen = (open: boolean, returnFocus = false) => {
+        menu.hidden = !open;
+        toggle.setAttribute("aria-expanded", String(open));
+        if (!open && returnFocus) toggle.focus({ preventScroll: true });
+      };
+
+      // Point each option at this page's translation.
+      const syncLinks = () => {
+        const json = document.getElementById("language-links")?.textContent;
+        if (!json) return;
+        let languageLinks: Record<string, { href: string; samePage: boolean }>;
+        try {
+          languageLinks = JSON.parse(json);
+        } catch {
+          return;
+        }
+        for (const link of links) {
+          const entry = languageLinks[link.dataset.languageLink ?? ""];
+          if (!entry) continue;
+          link.setAttribute("href", entry.href);
+          link.dataset.samePage = String(entry.samePage);
+        }
+      };
+
+      toggle.addEventListener(
+        "click",
+        () => {
+          const open = !isOpen();
+          setOpen(open);
+          if (open) {
+            const firstOther = links.find((link) => link.getAttribute("aria-current") !== "true") ?? links[0];
+            firstOther?.focus({ preventScroll: true });
+          }
+        },
+        { signal },
+      );
+
+      // Same page in another language: carry the query string along.
+      menu.addEventListener(
+        "click",
+        (event) => {
+          const link = (event.target as Element).closest<HTMLAnchorElement>("[data-language-link]");
+          if (!link || link.dataset.samePage !== "true" || !location.search) return;
+          const url = new URL(link.href);
+          url.search = location.search;
+          link.href = url.href;
+        },
+        { signal },
+      );
+
+      menu.addEventListener(
+        "keydown",
+        (event) => {
+          if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+          event.preventDefault();
+          const index = links.indexOf(document.activeElement as HTMLAnchorElement);
+          const step = event.key === "ArrowDown" ? 1 : -1;
+          links[(index + step + links.length) % links.length]?.focus();
+        },
+        { signal },
+      );
+
+      // Capture phase so Escape closes this dropdown before it closes the whole menu.
+      document.addEventListener(
+        "keydown",
+        (event) => {
+          if (event.key !== "Escape" || !isOpen()) return;
+          event.stopPropagation();
+          setOpen(false, true);
+        },
+        { signal, capture: true },
+      );
+
+      document.addEventListener(
+        "pointerdown",
+        (event) => {
+          if (isOpen() && !this.contains(event.target as Node)) setOpen(false);
+        },
+        { signal },
+      );
+
+      this.addEventListener(
+        "focusout",
+        (event) => {
+          if (isOpen() && !this.contains(event.relatedTarget as Node | null)) setOpen(false);
+        },
+        { signal },
+      );
+
+      // Opening or closing the site menu closes the dropdown.
+      document.addEventListener(
+        "click",
+        (event) => {
+          if ((event.target as Element).closest("[data-menu-toggle]")) setOpen(false);
+        },
+        { signal },
+      );
+
+      document.addEventListener("astro:before-preparation", () => setOpen(false), { signal });
+      document.addEventListener("astro:page-load", syncLinks, { signal });
+      syncLinks();
+
+      this.cleanup = () => controller.abort();
+    }
+
+    // Moved along with the persisted header: keep listeners as they are.
+    connectedMoveCallback() {}
+
+    disconnectedCallback() {
+      // Wait a tick: a persisted element is detached and re-attached during a swap.
+      queueMicrotask(() => {
+        if (this.isConnected) return;
+        this.cleanup?.();
+        this.cleanup = undefined;
+      });
+    }
+  }
+
+  customElements.get("language-switcher") || customElements.define("language-switcher", LanguageSwitcher);
+</script>
+
+<style>
+  .language-toggle {
+    border-radius: var(--radius-sm);
+    background-color: var(--color-neutral-900);
+    color: var(--color-neutral-200);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-neutral-100) 25%, transparent);
+    white-space: nowrap;
+    cursor: pointer;
+    border: 0;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 10px 7px 12px;
+    transition:
+      background-color 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    display: inline-flex;
+  }
+  .language-toggle:is(:hover, :focus-visible, [aria-expanded="true"]) {
+    background-color: var(--color-neutral-700);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-neutral-100) 40%, transparent);
+  }
+  .language-toggle:focus-visible {
+    outline: 2px solid var(--color-neutral-100);
+    outline-offset: 4px;
+  }
+  .language-caret {
+    transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .language-toggle[aria-expanded="true"] .language-caret {
+    transform: rotate(180deg);
+  }
+  .language-menu {
+    z-index: 1;
+    border-radius: var(--radius-lg);
+    background-color: var(--color-neutral-900);
+    min-width: 10.5rem;
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--color-neutral-100) 20%, transparent),
+      0 12px 32px -12px #00000080;
+    transform-origin: 100% 0;
+    --language-menu-from: -4px;
+    margin: 0;
+    padding: 4px;
+    list-style: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+  }
+  /* Phones: the switcher sits at the bottom of the menu, so it opens upwards. */
+  @media (width<=39.99rem) {
+    .language-menu {
+      transform-origin: 100% 100%;
+      --language-menu-from: 4px;
+      top: auto;
+      bottom: calc(100% + 6px);
+    }
+  }
+  .language-menu:not([hidden]) {
+    animation: 0.22s cubic-bezier(0.22, 1, 0.36, 1) language-menu-in;
+  }
+  .language-option {
+    border-radius: var(--radius-sm);
+    color: var(--color-neutral-100);
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1.5rem;
+    padding: 8px 10px;
+    text-decoration: none;
+    transition: background-color 0.2s;
+    display: flex;
+  }
+  .language-option:is(:hover, :focus-visible) {
+    background-color: color-mix(in srgb, var(--color-neutral-100) 10%, transparent);
+  }
+  .language-option:focus-visible {
+    outline: 2px solid var(--color-neutral-100);
+    outline-offset: -2px;
+  }
+  .language-option[aria-current="true"] .language-name:after {
+    content: "*";
+    margin-left: 0.1em;
+  }
+  .language-code {
+    color: color-mix(in srgb, var(--color-neutral-100) 55%, transparent);
+  }
+  @keyframes language-menu-in {
+    0% {
+      opacity: 0;
+      transform: translateY(var(--language-menu-from)) scale(0.98);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .language-toggle,
+    .language-caret {
+      transition: none;
+    }
+    .language-menu:not([hidden]) {
+      animation: none;
+    }
+  }
+</style>

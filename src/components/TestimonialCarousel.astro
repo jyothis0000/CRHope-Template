@@ -1,0 +1,220 @@
+---
+// Testimonial slides with previous/next buttons, a counter and an autoplay progress bar.
+interface Testimonial {
+  quote: string;
+  name: string;
+  avatar: string;
+}
+
+interface Props {
+  testimonials: Testimonial[];
+  autoplay?: boolean;
+}
+
+const { testimonials, autoplay = true } = Astro.props;
+const total = String(testimonials.length).padStart(2, "0");
+const buttonClass =
+  "flex size-8 cursor-pointer items-center justify-center rounded-sm transition-opacity hover:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-neutral-100 disabled:cursor-default disabled:opacity-30 max-md:relative max-md:before:absolute max-md:before:-inset-1.5";
+---
+
+<div data-testimonial-carousel data-autoplay={String(autoplay)}>
+  <div class="mb-7">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-1">
+        <button data-testimonial-previous type="button" aria-label="Previous testimonial" class={buttonClass}>
+          <!-- Mirrored, not rotated 225deg: keeps it level with "next". --><span class="flex -scale-x-100"
+            ><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none" class="rotate-45">
+              <rect width="11.3154" height="2.05735" fill="currentColor"></rect>
+              <rect x="11.3154" y="1.02872" width="10.2867" height="2.05735" transform="rotate(90 11.3154 1.02872)" fill="currentColor"></rect>
+              <rect x="10.5723" y="2.18321" width="12.8716" height="2.05291" transform="rotate(135 10.5723 2.18321)" fill="currentColor"></rect>
+            </svg></span
+          ></button
+        ><button data-testimonial-next type="button" aria-label="Next testimonial" class={buttonClass}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none" class="rotate-45">
+            <rect width="11.3154" height="2.05735" fill="currentColor"></rect>
+            <rect x="11.3154" y="1.02872" width="10.2867" height="2.05735" transform="rotate(90 11.3154 1.02872)" fill="currentColor"></rect>
+            <rect x="10.5723" y="2.18321" width="12.8716" height="2.05291" transform="rotate(135 10.5723 2.18321)" fill="currentColor"></rect>
+          </svg>
+        </button>
+      </div>
+      <p aria-hidden="true" class="font-author text-fluid-24 leading-none font-semibold">
+        <span data-testimonial-current>01</span><span>/{total}</span>
+      </p>
+    </div>
+    <!-- Static track with an animated fill and wipe. -->
+    <div aria-hidden="true" class="relative mt-2 h-px w-full overflow-hidden bg-neutral-100/25">
+      <div data-testimonial-progress class="absolute inset-0 origin-left bg-neutral-100" style="transform: scaleX(0); clip-path: inset(0 0 0 0%)"></div>
+    </div>
+  </div>
+  <!-- Stacked slides preserve the height of the tallest testimonial. -->
+  <div data-testimonial-stage aria-live="off" aria-atomic="true" class="grid">
+    {
+      testimonials.map(({ quote, name, avatar }, index) => (
+        <figure
+          data-testimonial
+          aria-hidden={String(index !== 0)}
+          inert={index !== 0}
+          class:list={["col-start-1 row-start-1 min-w-0", index !== 0 && "invisible"]}
+        >
+          <blockquote data-testimonial-part class="font-author text-fluid-24 leading-[1.3] font-medium lg:text-testimonial">
+            <p>“{quote}”</p>
+          </blockquote>
+          <figcaption
+            data-testimonial-part
+            class="mt-6 flex items-center gap-4 font-author text-fluid-18 leading-snug font-medium lg:text-testimonial-caption"
+          >
+            <img src={avatar} alt="" loading="lazy" decoding="async" width="32" height="32" class="size-8 shrink-0 rounded-full object-cover" />
+            <p>{name}</p>
+          </figcaption>
+        </figure>
+      ))
+    }
+  </div>
+</div>
+
+<script>
+  import { gsap } from "gsap";
+
+  const AUTOPLAY_SECONDS = 8;
+  // Slide transition length: shorter when autoplay advances, longer on a click.
+  const AUTO_TRANSITION = 0.4;
+  const MANUAL_TRANSITION = 0.6;
+  const SLIDE_OFFSET = 24;
+
+  let cleanups: Array<() => void> = [];
+
+  function setupCarousel(carousel: HTMLElement) {
+    const slides = Array.from(carousel.querySelectorAll<HTMLElement>("[data-testimonial]"));
+    const progress = carousel.querySelector("[data-testimonial-progress]");
+    const stage = carousel.querySelector("[data-testimonial-stage]");
+    const counter = carousel.querySelector("[data-testimonial-current]");
+    const previousButton = carousel.querySelector("[data-testimonial-previous]");
+    const nextButton = carousel.querySelector("[data-testimonial-next]");
+    if (!progress || !slides.length) return () => {};
+
+    const slideParts = slides.map((slide) => Array.from(slide.querySelectorAll("[data-testimonial-part]")));
+    const allParts = slideParts.flat();
+    const autoplay = carousel.dataset.autoplay === "true";
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const controller = new AbortController();
+    const { signal } = controller;
+    let current = 0;
+    let animating = false;
+    let progressTween: gsap.core.Tween | null = null;
+    let transition: gsap.core.Timeline | null = null;
+
+    function setActive(index: number) {
+      current = index;
+      slides.forEach((slide, slideIndex) => {
+        const active = slideIndex === current;
+        slide.classList.toggle("invisible", !active);
+        slide.setAttribute("aria-hidden", String(!active));
+        slide.inert = !active;
+      });
+      if (counter) counter.textContent = String(current + 1).padStart(2, "0");
+    }
+
+    function resetProgress() {
+      gsap.set(progress, { scaleX: 0, clipPath: "inset(0 0 0 0%)" });
+    }
+
+    function stopAutoplay() {
+      progressTween?.kill();
+      progressTween = null;
+    }
+
+    // The progress bar fills over AUTOPLAY_SECONDS, then advances.
+    function startAutoplay() {
+      if (!autoplay || slides.length < 2 || reducedMotion.matches || animating) return;
+      stopAutoplay();
+      progressTween = gsap.to(progress, {
+        scaleX: 1,
+        duration: AUTOPLAY_SECONDS,
+        ease: "none",
+        onComplete: () => {
+          progressTween = null;
+          go(1, true);
+        },
+      });
+    }
+
+    function go(step: number, automatic = false) {
+      if (animating || slides.length < 2) return;
+      stopAutoplay();
+      const next = (current + step + slides.length) % slides.length;
+      // Only announce changes the visitor asked for.
+      stage?.setAttribute("aria-live", automatic ? "off" : "polite");
+      if (reducedMotion.matches) {
+        setActive(next);
+        resetProgress();
+        return;
+      }
+
+      animating = true;
+      const outgoing = slideParts[current];
+      const incoming = slideParts[next];
+      const duration = automatic ? AUTO_TRANSITION : MANUAL_TRANSITION;
+      const half = duration / 2;
+      gsap.set(incoming, { opacity: 0, y: SLIDE_OFFSET });
+      slides[next].classList.remove("invisible");
+
+      transition = gsap.timeline({
+        onComplete: () => {
+          setActive(next);
+          gsap.set(allParts, { clearProps: "transform,opacity" });
+          resetProgress();
+          transition = null;
+          animating = false;
+          startAutoplay();
+        },
+      });
+      // Autoplay has already filled the bar; a click fills it while it wipes out.
+      if (!automatic) transition.to(progress, { scaleX: 1, duration, ease: "power2.inOut" }, 0);
+      transition.to(progress, { clipPath: "inset(0 0 0 100%)", duration, ease: "power2.inOut" }, 0);
+      transition.to(outgoing, { y: -SLIDE_OFFSET, opacity: 0, duration: half, ease: "power4.inOut" }, 0);
+      transition.call(() => setActive(next), [], half);
+      transition.to(incoming, { y: 0, opacity: 1, duration: half, ease: "power4.inOut" }, half);
+    }
+
+    function onMotionPreferenceChange() {
+      stopAutoplay();
+      if (reducedMotion.matches) {
+        transition?.progress(1);
+        resetProgress();
+        return;
+      }
+      startAutoplay();
+    }
+
+    previousButton?.addEventListener("click", () => go(-1), { signal });
+    nextButton?.addEventListener("click", () => go(1), { signal });
+    reducedMotion.addEventListener("change", onMotionPreferenceChange, { signal });
+
+    gsap.set(allParts, { clearProps: "transform,opacity" });
+    setActive(0);
+    resetProgress();
+    startAutoplay();
+
+    return () => {
+      controller.abort();
+      stopAutoplay();
+      transition?.kill();
+    };
+  }
+
+  function teardown() {
+    cleanups.forEach((cleanup) => cleanup());
+    cleanups = [];
+  }
+
+  function init() {
+    teardown();
+    document.querySelectorAll<HTMLElement>("[data-testimonial-carousel]").forEach((carousel) => {
+      cleanups.push(setupCarousel(carousel));
+    });
+  }
+
+  init();
+  document.addEventListener("astro:page-load", init);
+  document.addEventListener("astro:before-swap", teardown);
+</script>

@@ -1,0 +1,292 @@
+---
+/**
+ * Dark section that draws in on scroll: a thin line wipes across, then grows
+ * into the full dark background. Inside, mark reveal targets with
+ * `data-dark-item` ("text" for headings with a [data-reveal-inner] span,
+ * "stagger" for lists of [data-dark-child], empty for a simple fade-up).
+ *
+ * - `pin`: pin the section for this fraction of its height once it fills the screen.
+ * - `narrow`: start the background at the width of the 10 inner grid columns.
+ * Extra attributes (aria-label, data-dark-process…) pass through to the <section>.
+ */
+import type { HTMLAttributes } from "astro/types";
+
+type Props = HTMLAttributes<"section"> & {
+  pin?: number;
+  narrow?: boolean;
+};
+
+const { pin, narrow = false, class: className, ...rest } = Astro.props;
+---
+
+<section
+  data-dark-reveal
+  data-dark-pin={pin}
+  data-dark-narrow={narrow}
+  {...rest}
+  class:list={["relative isolate min-h-svh px-site-margin text-neutral-100 flex items-center py-section-high", className]}
+>
+  <div data-dark-background aria-hidden="true" class="pointer-events-none absolute inset-0 -z-10 origin-top bg-neutral-900"></div>
+  {narrow && <div data-dark-gutter aria-hidden="true" class="pointer-events-none invisible absolute top-0 left-0 h-0 w-gutter"></div>}
+  <slot />
+</section>
+<!-- Keep the content accessible when JavaScript is disabled. --><noscript
+  ><style is:inline>
+    [data-dark-reveal] [data-dark-item],
+    [data-dark-reveal] [data-dark-child] {
+      opacity: 1 !important;
+      visibility: visible !important;
+    }
+  </style></noscript
+>
+
+<script>
+  import { gsap } from "gsap";
+  import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  // Delay between consecutive reveal items.
+  const ITEM_STEP = 0.2;
+
+  // Slides a heading's [data-reveal-inner] up out of its overflow-hidden parent.
+  function revealText(element: Element, vars: gsap.TweenVars = {}) {
+    const inner = element.querySelector("[data-reveal-inner]");
+    if (!inner) throw Error("Text reveal requires a data-reveal-inner element.");
+    return gsap.fromTo(inner, { yPercent: 110 }, { yPercent: 0, duration: 0.9, ease: "power3.out", ...vars });
+  }
+
+  // data-dark-process sections: while pinned, each [data-process-step] opens in turn
+  // (via the --process-open custom property) and swaps in its description.
+  function createProcessTimeline(section: HTMLElement) {
+    const process = section.querySelector("[data-process]");
+    if (!process) return;
+    const steps = Array.from(process.querySelectorAll("[data-process-step]")).flatMap((element) => {
+      const description = element.querySelector("[data-process-description]");
+      return description ? [{ element, description }] : [];
+    });
+    if (steps.length < 2) return;
+
+    gsap.set(section, { height: "100dvh", minHeight: "100dvh", paddingTop: 0, paddingBottom: 0 });
+    steps.forEach(({ element, description }, index) => {
+      const isFirst = index === 0;
+      gsap.set(element, { "--process-open": isFirst ? 1 : 0 });
+      gsap.set(description, { opacity: isFirst ? 1 : 0, y: isFirst ? 0 : 12 });
+    });
+
+    const timeline = gsap.timeline({ paused: true, defaults: { ease: "none" } });
+    const hold = 0.3;
+    timeline.to({}, { duration: hold });
+    for (let index = 1; index < steps.length; index += 1) {
+      const previous = steps[index - 1];
+      const current = steps[index];
+      const at = timeline.duration();
+      timeline.to(previous.element, { "--process-open": 0, duration: 1 }, at);
+      timeline.to(current.element, { "--process-open": 1, duration: 1 }, at);
+      timeline.to(previous.description, { opacity: 0, y: 8, duration: 0.2 }, at);
+      timeline.fromTo(
+        current.description,
+        { opacity: 0, y: 12 },
+        { opacity: 1, y: 0, duration: 0.35, immediateRender: false },
+        at + 0.45,
+      );
+      timeline.to({}, { duration: hold });
+    }
+    return timeline;
+  }
+
+  let media: gsap.MatchMedia | undefined;
+
+  function teardown() {
+    media?.revert();
+    media = undefined;
+  }
+
+  function init() {
+    teardown();
+    const sections = document.querySelectorAll<HTMLElement>("[data-dark-reveal]");
+    if (!sections.length) return;
+    const mm = gsap.matchMedia();
+    media = mm;
+
+    sections.forEach((section) => {
+      const background = section.querySelector<HTMLElement>("[data-dark-background]");
+      if (!background) return;
+      const gutter = section.hasAttribute("data-dark-narrow")
+        ? section.querySelector<HTMLElement>(":scope > [data-dark-gutter]")
+        : null;
+
+      // Ignore items that belong to a nested dark section.
+      function belongsHere(element: Element) {
+        return element.closest("[data-dark-reveal]") === section;
+      }
+      const items = Array.from(section.querySelectorAll<HTMLElement>("[data-dark-item]")).filter(belongsHere);
+
+      mm.add(
+        {
+          motion: "(prefers-reduced-motion: no-preference)",
+          pinHeight: "(min-height: 40rem)",
+          phone: "(max-width: 47.99rem)",
+        },
+        (context) => {
+          if (!context.conditions?.motion) return;
+
+          let backgroundHeight = 1;
+          let sectionHeight = 1;
+          let startScaleX = 1;
+          let growDistance = 1;
+          let totalGrow = 1;
+          let wipeDistance = 0;
+
+          gsap.set(background, {
+            height: "100lvh",
+            scaleX: 1,
+            scaleY: 1,
+            transformOrigin: "50% 0%",
+            willChange: "transform",
+          });
+          gsap.set(section, { clipPath: "inset(0px 0% 0px 0%)" });
+
+          const setScaleX = gsap.quickSetter(background, "scaleX");
+          const setScaleY = gsap.quickSetter(background, "scaleY");
+          const setClipPath = gsap.quickSetter(section, "clipPath");
+          let lastClipPath = "";
+          const clamp01 = gsap.utils.clamp(0, 1);
+          const widenEase = gsap.parseEase("power2.out");
+          const wipeEase = gsap.parseEase("sine.inOut");
+
+          function measure() {
+            const style = window.getComputedStyle(section);
+            const paddingLeft = parseFloat(style.paddingLeft) || 0;
+            const paddingRight = parseFloat(style.paddingRight) || 0;
+            backgroundHeight = Math.max(1, background.offsetHeight);
+            sectionHeight = Math.max(1, section.offsetHeight);
+            const fullWidth = Math.max(1, background.offsetWidth);
+            const innerWidth = fullWidth - paddingLeft - paddingRight;
+            let startWidth = innerWidth;
+            if (gutter) {
+              // Width of the 10 middle columns of the 12-column grid.
+              const gutterWidth = gutter.getBoundingClientRect().width;
+              startWidth = Math.max(0, (innerWidth - gutterWidth * 11) / 12) * 10 + gutterWidth * 9;
+            }
+            startScaleX = clamp01(startWidth / fullWidth);
+            growDistance = backgroundHeight * 0.6;
+            totalGrow = growDistance + Math.max(0, sectionHeight - backgroundHeight);
+            wipeDistance = backgroundHeight * 0.2;
+          }
+
+          // Phase 1 (wipeDistance): a 4px line draws left to right.
+          // Phase 2 (growDistance): it widens (first 18%) while growing down to the viewport height.
+          // Phase 3: it keeps growing with the section until it covers it.
+          function update(trigger: ScrollTrigger) {
+            const scrolled = gsap.utils.clamp(0, wipeDistance + totalGrow, trigger.scroll() - trigger.start);
+            const wipe = wipeDistance > 0 ? wipeEase(clamp01(scrolled / wipeDistance)) : 1;
+            const grown = scrolled - wipeDistance;
+            const growProgress = clamp01(grown / growDistance);
+            const widen = widenEase(clamp01(growProgress / 0.18));
+            const scaleX = startScaleX + (1 - startScaleX) * widen;
+            const height =
+              grown <= growDistance
+                ? 4 + (backgroundHeight - 4) * growProgress
+                : Math.min(sectionHeight, backgroundHeight + grown - growDistance);
+            setScaleX(scaleX);
+            setScaleY(height / backgroundHeight);
+
+            const insetLeft = ((1 - scaleX) / 2) * 100;
+            const insetRight = insetLeft + (1 - wipe) * scaleX * 100;
+            const insetBottom = Math.max(0, sectionHeight - height);
+            const clipPath = `inset(0px ${insetRight.toFixed(2)}% ${Math.round(insetBottom)}px ${insetLeft.toFixed(2)}%)`;
+            if (clipPath !== lastClipPath) {
+              lastClipPath = clipPath;
+              setClipPath(clipPath);
+            }
+          }
+
+          const processTimeline =
+            section.hasAttribute("data-dark-process") && context.conditions?.pinHeight
+              ? createProcessTimeline(section)
+              : undefined;
+
+          measure();
+          update(
+            ScrollTrigger.create({
+              trigger: section,
+              start: () => `top ${growDistance + wipeDistance}px`,
+              end: () => `+=${wipeDistance + totalGrow}`,
+              onRefreshInit: measure,
+              onRefresh: update,
+              onUpdate: update,
+            }),
+          );
+
+          // Don't pin sections taller than the screen on phones.
+          const pinRatio = Number(section.dataset.darkPin ?? 0);
+          const tallOnPhone = context.conditions?.phone && section.offsetHeight > window.innerHeight;
+          if (pinRatio > 0 && context.conditions?.pinHeight && !tallOnPhone) {
+            ScrollTrigger.create({
+              trigger: section,
+              ...(processTimeline ? { animation: processTimeline } : {}),
+              start: "top top",
+              end: () => `+=${section.offsetHeight * pinRatio}`,
+              pin: true,
+              pinSpacing: true,
+              scrub: true,
+              anticipatePin: 1,
+            });
+          }
+
+          if (!items.length) return;
+
+          const reveal = gsap.timeline({ paused: true, defaults: { duration: 0.55, ease: "power2.out" } });
+          let position = 0;
+          items.forEach((item) => {
+            const kind = item.dataset.darkItem;
+            const at = position;
+            if (kind === "text") {
+              reveal.set(item, { autoAlpha: 1, immediateRender: false }, at);
+              reveal.add(revealText(item, { duration: 0.4 }), at);
+              position += ITEM_STEP;
+              return;
+            }
+            if (kind === "stagger") {
+              const children = Array.from(item.querySelectorAll<HTMLElement>("[data-dark-child]")).filter(
+                (child) => belongsHere(child) && child.closest("[data-dark-item]") === item,
+              );
+              if (!children.length) return;
+              reveal.set(item, { autoAlpha: 1, immediateRender: false }, at);
+              reveal.fromTo(children, { autoAlpha: 0, y: 24 }, { autoAlpha: 1, y: 0, stagger: 0.07 }, at);
+              position += ITEM_STEP;
+              return;
+            }
+            reveal.fromTo(item, { autoAlpha: 0, y: 24 }, { autoAlpha: 1, y: 0 }, at);
+            position += ITEM_STEP;
+          });
+
+          ScrollTrigger.create({
+            trigger: section,
+            animation: reveal,
+            start: () => `top ${growDistance * 0.6}px`,
+            end: "bottom top",
+            toggleActions: "play none none none",
+            once: true,
+          });
+        },
+        section,
+      );
+    });
+  }
+
+  init();
+  document.addEventListener("astro:page-load", init);
+  document.addEventListener("astro:before-swap", teardown);
+</script>
+
+<style is:global>
+  @media (prefers-reduced-motion: no-preference) {
+    [data-dark-reveal] [data-dark-item],
+    [data-dark-reveal] [data-dark-child] {
+      opacity: 0;
+      visibility: hidden;
+    }
+  }
+</style>

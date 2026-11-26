@@ -1,0 +1,139 @@
+---
+// Results marquee: value/label pills scrolling left forever. The items render
+// once for screen readers, then as aria-hidden clones that make the loop seamless.
+interface ProofItem {
+  value?: string;
+  /** Pictogram shown in place of `value`. */
+  icon?: "workflow";
+  label: string;
+}
+
+interface Props {
+  items: ProofItem[];
+  /** aria-label of the list. */
+  label: string;
+  /** Scroll speed in px per second. */
+  speed?: number;
+  class?: string;
+}
+
+const { items, label, speed = 40, class: className } = Astro.props;
+
+// The track animates to -50%, so it is two identical halves; each half repeats
+// the items until it holds at least 6, enough to overflow the strip.
+const MIN_ITEMS_PER_HALF = 6;
+const half = Array.from({ length: Math.ceil(MIN_ITEMS_PER_HALF / items.length) }, () => items).flat();
+const track = [...half, ...half].map((item, index) => ({ ...item, clone: index >= items.length }));
+---
+
+<proof-strip data-speed={speed} data-proof-font="clash-small-author" class:list={["block min-w-0 overflow-hidden", className]}>
+  <ul class="flex w-max" aria-label={label} data-proof-track>
+    {
+      track.map((item) => (
+        <li
+          class="mr-gutter flex shrink-0 items-center gap-4 rounded-lg bg-neutral-100 p-1.5 pr-5"
+          aria-hidden={item.clone ? "true" : undefined}
+          data-proof-clone={item.clone ? "" : undefined}
+        >
+          <span
+            class="flex items-center whitespace-nowrap rounded-lg bg-neutral-700 px-2.5 py-1.5 text-neutral-100 type-clash-semibold-14"
+            data-proof-value
+          >
+            {item.icon === "workflow" ? (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                aria-hidden="true"
+                class="h-[1lh] w-auto py-[0.02em]"
+              >
+                <!-- Two blocks joined by a connector: linked systems / a workflow. -->
+                <rect x="2.5" y="2.5" width="8" height="8" rx="1.5" />
+                <rect x="13.5" y="13.5" width="8" height="8" rx="1.5" />
+                <path d="M6.5 10.5 V17.5 H13.5 M10.5 6.5 H17.5 V13.5" />
+              </svg>
+            ) : (
+              item.value
+            )}
+          </span>
+          <span class="whitespace-nowrap type-author-semibold-16 text-neutral-900" data-proof-label>
+            {item.label}
+          </span>
+        </li>
+      ))
+    }
+  </ul>
+</proof-strip>
+
+<script>
+  // Sets the loop duration from the track width so every strip moves at the
+  // same px/s speed, and pauses the animation while the strip is off screen.
+  class ProofStrip extends HTMLElement {
+    static observedAttributes = ["data-speed"];
+    track?: HTMLElement | null;
+    resizeObserver?: ResizeObserver;
+    visibilityObserver?: IntersectionObserver;
+
+    connectedCallback() {
+      this.track = this.querySelector<HTMLElement>("[data-proof-track]");
+      if (!this.track || this.resizeObserver) return;
+
+      this.resizeObserver = new ResizeObserver(() => this.update());
+      this.resizeObserver.observe(this.track);
+      this.visibilityObserver = new IntersectionObserver(([entry]) => {
+        this.toggleAttribute("data-paused", !entry.isIntersecting);
+      });
+      this.visibilityObserver.observe(this);
+      this.update();
+    }
+
+    attributeChangedCallback() {
+      this.update();
+    }
+
+    disconnectedCallback() {
+      this.resizeObserver?.disconnect();
+      this.visibilityObserver?.disconnect();
+      this.resizeObserver = undefined;
+      this.visibilityObserver = undefined;
+    }
+
+    update() {
+      if (!this.track) return;
+      const speed = Number(this.dataset.speed) || 40;
+      // One loop travels half the track.
+      const distance = this.track.scrollWidth / 2;
+      if (distance) this.style.setProperty("--proof-duration", `${(distance / speed).toFixed(2)}s`);
+    }
+  }
+
+  customElements.get("proof-strip") || customElements.define("proof-strip", ProofStrip);
+</script>
+
+<style>
+  [data-proof-track] {
+    animation: proof-strip-scroll var(--proof-duration, 40s) linear infinite;
+    will-change: transform;
+  }
+  proof-strip[data-paused] [data-proof-track] {
+    animation-play-state: paused;
+  }
+  @keyframes proof-strip-scroll {
+    to {
+      transform: translate(-50%);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    [data-proof-track] {
+      row-gap: var(--spacing-gutter);
+      flex-wrap: wrap;
+      width: auto;
+      animation: none;
+    }
+    [data-proof-clone] {
+      display: none;
+    }
+  }
+</style>

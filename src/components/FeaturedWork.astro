@@ -1,0 +1,690 @@
+---
+// Featured Work: an endless, draggable project slider. Each slide's image darkens
+// and an animated preview wipes in when it comes into view; a "Drag" pill
+// follows the mouse over the slider, and phones get previous/next buttons.
+import CtaButton from "./CtaButton.astro";
+import ProofStrip from "./ProofStrip.astro";
+
+const projects = [
+  {
+    title: "Aboutwrap",
+    url: "https://aboutwrap.com/",
+    image: "/projects/aboutwrap/aboutwrap-main.webp",
+    animatedImage: "/projects/aboutwrap/animated-aboutwrap.webp",
+    paragraphs: [
+      "We helped Aboutwrap define what made the business different, then built a brand and website to make that difference visible. From printed materials to digital touchpoints and motion, every detail was designed to communicate the quality of the work.",
+      "The website brought it all together: clear messaging, considered imagery, and a straightforward path from discovering the business to making an inquiry.",
+    ],
+    proof: [
+      { value: "19%", label: "Visitor-to-enquiry conversion" },
+      { value: "0–100", label: "End-to-end delivery" },
+      { value: "1", label: "Cohesive identity across formats" },
+    ],
+  },
+  {
+    title: "Mariohino",
+    url: "https://mariohino.com",
+    image: "/projects/mariohino/mario-main-image.webp",
+    animatedImage: "/projects/mariohino/marriohino-animated.webp",
+    paragraphs: [
+      "We brought Mariohino’s creative vision and website design to life, pairing fast-loading pages with carefully crafted animations. The result preserves the character of the original design while making the experience feel smooth and responsive.",
+      "Behind the scenes, we made the website easy to update and built a dedicated video solution to give the work the playback quality it deserved.",
+    ],
+    proof: [
+      { value: "Custom-built motion", label: "Handcrafted interactions and transitions" },
+      { value: "Dedicated video delivery", label: "Smooth playback for video-led work" },
+    ],
+  },
+  {
+    title: "The Pichichi Company",
+    url: "https://www.thepichichicompany.com/",
+    image: "/projects/thepichichicompany/pichichi-main-image.webp",
+    animatedImage: "/projects/thepichichicompany/animated-pichichi.webp",
+    paragraphs: [
+      "We rebuilt The Pichichi Company’s online store to make shopping faster and running the business simpler. Alongside the refreshed storefront, we connected orders and stock management, refined product options, and improved customer emails.",
+      "Ongoing improvements to the shopping experience and search visibility supported year-over-year revenue growth and higher average order values.",
+    ],
+    proof: [
+      { value: "45.8%", label: "Year-over-year revenue growth" },
+      { value: "32.2%", label: "Increase in average order value" },
+      { icon: "workflow" as const, label: "Connected and automated operations" },
+    ],
+  },
+  {
+    title: "Smartests",
+    url: "https://www.smartests.app/",
+    image: "/projects/smartests/main-photo-smartests.webp",
+    animatedImage: "/projects/smartests/animated-smartests.webp",
+    paragraphs: [
+      "A complete SaaS product, built and grown from the ground up. We created everything from the brand and product experience to the website, platform, videos, and multilingual content.",
+      "Growth was built into the product through useful tools, search-focused content, and organic discovery—reaching more than 9,000 registered users without spending on paid acquisition.",
+    ],
+    proof: [
+      { value: "9,000+", label: "Registered users" },
+      { value: "4,000", label: "Peak monthly active users" },
+      { value: "All", label: "Leads generated organically" },
+    ],
+  },
+  {
+    title: "Mielespaña",
+    url: "https://xn--mielespaa-s6a.com/",
+    image: "/projects/mielespaña/miel-main-image.webp",
+    animatedImage: "/projects/mielespaña/animated-mielespana.webp",
+    paragraphs: [
+      "We built Mielespaña’s online store from scratch and continued improving it as the business grew. From search visibility and the shopping experience to day-to-day management, we shaped a store that worked better for both customers and the people behind it.",
+      "Custom features, automation, and ongoing refinements supported the business as it grew from zero to 8k in monthly revenue.",
+    ],
+    proof: [
+      { value: "€0 to €96,000", label: "Revenue run rate" },
+      { icon: "workflow" as const, label: "Custom tools and automation" },
+    ],
+  },
+];
+
+// Three copies for the infinite loop: [clones][real][clones]. The script keeps
+// the real set in view; clones start hidden from assistive tech and out of the tab order.
+const slides = [true, false, true].flatMap((isClone) => projects.map((project) => ({ ...project, isClone })));
+
+// Arrow glyph shared by the phone nav buttons and the drag cursor.
+const arrowShape = `<rect width="11.3154" height="2.05735" fill="currentColor"></rect><rect x="11.3154" y="1.02872" width="10.2867" height="2.05735" transform="rotate(90 11.3154 1.02872)" fill="currentColor"></rect><rect x="10.5723" y="2.18321" width="12.8716" height="2.05291" transform="rotate(135 10.5723 2.18321)" fill="currentColor"></rect>`;
+---
+
+<section class="px-site-margin py-section-high" data-featured-work>
+  <h2 class="type-clash-semibold-32 mb-8 text-neutral-900">Featured Work</h2>
+  <featured-work-slider class="block" data-project-count={projects.length}>
+    <div class="touch-pan-y overflow-hidden" data-viewport>
+      <!--
+        The track and the per-slide effect layers are promoted to their
+        own compositor layers (see <style>), so moving them never
+        repaints or re-rasterises the slides' images.
+      -->
+      <div class="flex gap-gutter select-none" data-track>
+        {
+          slides.map((project) => (
+            <div
+              class="box-border w-full min-w-0 shrink-0 rounded-lg bg-neutral-900/5 p-10 max-md:p-4"
+              aria-hidden={project.isClone ? "true" : undefined}
+            >
+              <div class="grid grid-cols-12 gap-gutter mx-auto max-w-none">
+                <div class="relative col-span-7 overflow-hidden rounded-lg max-md:col-span-12" data-project-media>
+                  <img
+                    src={project.image}
+                    alt={`${project.title} project`}
+                    width="1500"
+                    height="1000"
+                    class="block h-auto w-full rounded-lg"
+                    decoding="async"
+                    draggable="false"
+                  />
+                  <div class="pointer-events-none absolute inset-0 bg-black opacity-0" data-project-overlay />
+                  <div
+                    class="pointer-events-none absolute inset-0 flex items-center justify-center"
+                    style="visibility: hidden;"
+                    data-project-animated
+                  >
+                    <div class="flex h-3/4 w-3/4 items-center justify-center">
+                      <img
+                        src={project.animatedImage}
+                        alt=""
+                        class="block max-h-full max-w-full rounded-lg"
+                        decoding="async"
+                        draggable="false"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div class="col-span-5 flex min-w-0 flex-col max-md:col-span-12 max-md:pt-4">
+                  <div class="mb-8 flex items-center justify-between gap-4 max-md:mb-4">
+                    <h3 class="type-author-semibold-32 min-w-0">{project.title}</h3>
+                    <CtaButton
+                      label="Live site"
+                      href={project.url}
+                      variant="white"
+                      size="md"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`${project.title} live site (opens in a new tab)`}
+                      draggable="false"
+                      tabindex={project.isClone ? "-1" : undefined}
+                      data-live-link
+                    />
+                  </div>
+                  <div class="flex max-w-[680px] flex-col gap-4">
+                    {project.paragraphs.map((paragraph) => (
+                      <p class="type-author-medium-18">{paragraph}</p>
+                    ))}
+                  </div>
+                  <ProofStrip label={`${project.title} results`} items={project.proof} class="mt-auto pt-8" />
+                </div>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+    <div class="-mx-2 mt-2 flex items-center justify-between text-neutral-700 md:hidden" data-slider-nav>
+      <button
+        type="button"
+        aria-label="Previous project"
+        class="flex size-8 cursor-pointer items-center justify-center rounded-sm transition-opacity hover:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-neutral-900 relative before:absolute before:-inset-1.5"
+        data-slider-previous
+      >
+        <span class="flex -scale-x-100">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none" class="rotate-45" set:html={arrowShape} />
+        </span>
+      </button>
+      <button
+        type="button"
+        aria-label="Next project"
+        class="flex size-8 cursor-pointer items-center justify-center rounded-sm transition-opacity hover:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-neutral-900 relative before:absolute before:-inset-1.5"
+        data-slider-next
+      >
+        <span class="flex">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none" class="rotate-45" set:html={arrowShape} />
+        </span>
+      </button>
+    </div>
+    <div class="drag-cursor type-author-semibold-16" aria-hidden="true" data-drag-cursor>
+      <span class="drag-cursor-content">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="12"
+          height="12"
+          viewBox="0 0 12 12"
+          fill="none"
+          class="drag-cursor-arrow rotate-225"
+          set:html={arrowShape}
+        />Drag<svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="12"
+          height="12"
+          viewBox="0 0 12 12"
+          fill="none"
+          class="drag-cursor-arrow rotate-45"
+          set:html={arrowShape}
+        />
+      </span>
+    </div>
+  </featured-work-slider>
+</section>
+
+<script>
+  import { gsap } from "gsap";
+  import { ScrollTrigger } from "gsap/ScrollTrigger";
+  import { FINE_POINTER_QUERY } from "../scripts/lib/pointer";
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  type Reveal = {
+    darkness: number;
+    reveal: number;
+    direction: number;
+    axis: "x" | "y";
+    timeline?: gsap.core.Timeline;
+  };
+
+  class FeaturedWorkSlider extends HTMLElement {
+    cleanup?: () => void;
+
+    connectedCallback() {
+      if (this.cleanup) return;
+      const viewport = this.querySelector<HTMLElement>("[data-viewport]");
+      const track = this.querySelector<HTMLElement>("[data-track]");
+      const projectCount = Number(this.dataset.projectCount);
+      if (!viewport || !track || !projectCount) return;
+
+      const controller = new AbortController();
+      const { signal } = controller;
+      const cursor = this.querySelector<HTMLElement>("[data-drag-cursor]");
+      // The cursor is position: fixed; on <body> no transformed ancestor can offset it.
+      if (cursor) document.body.appendChild(cursor);
+
+      const position = { x: 0 };
+      const slides = Array.from(track.children).map((slide, index) => ({
+        slide,
+        index,
+        // Position in the endless strip (0 = first real project); null while out of view.
+        logicalIndex: null as number | null,
+        overlay: slide.querySelector<HTMLElement>("[data-project-overlay]"),
+        animated: slide.querySelector<HTMLElement>("[data-project-animated]"),
+        links: Array.from(slide.querySelectorAll("[data-live-link]")),
+        ariaHidden: slide.getAttribute("aria-hidden"),
+        // Last values written to the DOM, so unchanged styles aren't rewritten.
+        painted: { opacity: "", transform: "", visibility: "" },
+      }));
+      // Reveal state per logical index currently in view.
+      const reveals = new Map<number, Reveal>();
+      let slideWidth = 0; // one slide plus the gap
+      let loopWidth = 0; // one full set of projects
+      let currentIndex = 0;
+      let dragPointerId: number | null = null;
+      let dragStartX = 0;
+      let dragLastX = 0;
+      let dragStartPosition = 0;
+      let dragStartIndex = 0;
+      let firstRender = true;
+      let introStarted = false;
+      let paintPending = false;
+
+      // Writes the overlay darkness and the animated preview's wipe for every slide.
+      const paint = () => {
+        paintPending = false;
+        slides.forEach((item) => {
+          const { logicalIndex, overlay, animated, painted } = item;
+          if (!overlay || !animated) return;
+          const state = logicalIndex === null ? undefined : reveals.get(logicalIndex);
+          const offset = state ? state.direction * 110 * (1 - state.reveal) : 110;
+          const opacity = String(state ? state.darkness * 0.55 : 0);
+          const transform = state?.axis === "y" ? `translate3d(0, ${offset}%, 0)` : `translate3d(${offset}%, 0, 0)`;
+          const visibility = state && state.reveal > 0 ? "visible" : "hidden";
+          if (painted.opacity !== opacity) {
+            overlay.style.opacity = opacity;
+            painted.opacity = opacity;
+          }
+          if (painted.transform !== transform) {
+            animated.style.transform = transform;
+            painted.transform = transform;
+          }
+          if (painted.visibility !== visibility) {
+            animated.style.visibility = visibility;
+            painted.visibility = visibility;
+          }
+        });
+      };
+      // Reveal tweens only flag a repaint; the ticker paints once per frame.
+      const requestPaint = () => {
+        paintPending = true;
+      };
+      const flushPaint = () => {
+        if (paintPending) paint();
+      };
+      gsap.ticker.add(flushPaint);
+
+      const playReveal = (state: Reveal) => {
+        state.timeline = gsap
+          .timeline({ onUpdate: requestPaint })
+          .to(state, { darkness: 1, duration: 0.5, ease: "power2.out" }, 0)
+          .to(state, { reveal: 1, duration: 0.7, ease: "power3.out" }, 0.28);
+      };
+
+      const render = () => {
+        if (!slideWidth || !loopWidth) return;
+        // Wrap the position into one loop, shifted a loop left so the real set is centred.
+        const trackX = gsap.utils.wrap(-loopWidth / 2, loopWidth / 2, position.x) - loopWidth;
+        track.style.transform = `translate3d(${trackX}px, 0, 0)`;
+        const indexShift = Math.round((trackX - position.x) / slideWidth);
+        const inViewIndices = new Set<number>();
+        const newReveals: Reveal[] = [];
+
+        slides.forEach((item) => {
+          // Distance from the viewport's left edge, in slides.
+          const offset = (item.index * slideWidth + trackX) / slideWidth;
+          const inView = Math.abs(offset) < 0.99999;
+          const ariaHidden = Math.abs(offset) < 0.5 ? "false" : "true";
+          if (item.ariaHidden !== ariaHidden) {
+            item.slide.setAttribute("aria-hidden", ariaHidden);
+            item.ariaHidden = ariaHidden;
+            item.links.forEach((link) => {
+              if (ariaHidden === "true") link.setAttribute("tabindex", "-1");
+              else link.removeAttribute("tabindex");
+            });
+          }
+          if (!inView) {
+            item.logicalIndex = null;
+            return;
+          }
+
+          const logicalIndex = item.index + indexShift;
+          item.logicalIndex = logicalIndex;
+          inViewIndices.add(logicalIndex);
+          if (reveals.has(logicalIndex)) return;
+
+          // The first slide wipes up on scroll-in; the rest wipe in from the side they enter.
+          const isIntro = firstRender && logicalIndex === 0;
+          const state: Reveal = {
+            darkness: 0,
+            reveal: 0,
+            direction: isIntro ? 1 : offset < 0 ? -1 : 1,
+            axis: isIntro ? "y" : "x",
+          };
+          reveals.set(logicalIndex, state);
+          if (!isIntro || introStarted) newReveals.push(state);
+        });
+
+        // Slides that left the view reset, so they reveal again next time.
+        reveals.forEach((state, logicalIndex) => {
+          if (inViewIndices.has(logicalIndex)) return;
+          state.timeline?.kill();
+          reveals.delete(logicalIndex);
+        });
+        firstRender = false;
+        paint();
+        newReveals.forEach(playReveal);
+      };
+
+      const goTo = (index: number) => {
+        currentIndex = index;
+        gsap.killTweensOf(position);
+        const targetX = -index * slideWidth;
+        if (Math.abs(position.x - targetX) < 0.5) {
+          position.x = targetX;
+          render();
+          return;
+        }
+        gsap.to(position, { x: targetX, duration: 0.7, ease: "power3.out", overwrite: true, onUpdate: render });
+      };
+
+      const measure = () => {
+        const viewportWidth = viewport.getBoundingClientRect().width;
+        const gap = parseFloat(getComputedStyle(track).columnGap) || 0;
+        const nextSlideWidth = viewportWidth ? viewportWidth + gap : 0;
+        if (!nextSlideWidth || nextSlideWidth === slideWidth) return;
+        const wasMeasured = slideWidth > 0;
+        const progress = wasMeasured ? position.x / slideWidth : 0;
+        gsap.killTweensOf(position);
+        slideWidth = nextSlideWidth;
+        loopWidth = slideWidth * projectCount;
+        position.x = progress * slideWidth;
+        // Mid-drag: restart the drag from here so the slide stays under the pointer.
+        if (dragPointerId !== null) {
+          dragStartPosition = position.x;
+          dragStartX = dragLastX;
+          dragStartIndex = currentIndex;
+        }
+        render();
+        if (wasMeasured && dragPointerId === null) goTo(currentIndex);
+      };
+
+      // Drag cursor
+      const finePointer = window.matchMedia(FINE_POINTER_QUERY);
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+      const cursorX = cursor ? gsap.quickTo(cursor, "x", { duration: 0.35, ease: "power3.out" }) : undefined;
+      const cursorY = cursor ? gsap.quickTo(cursor, "y", { duration: 0.35, ease: "power3.out" }) : undefined;
+      let pointerX = 0;
+      let pointerY = 0;
+      let hasMousePointer = false;
+      let cursorShown = false;
+      let overLiveLink = false;
+      let sliderNearView = false;
+      let pointerMoved = false;
+      // Sits just left of the pointer, vertically centred on it.
+      if (cursor) gsap.set(cursor, { xPercent: -100, yPercent: -50, scale: 0.6, transformOrigin: "right center" });
+
+      const moveCursor = (immediate: boolean) => {
+        if (!cursorX || !cursorY) return;
+        const x = pointerX - 16;
+        const y = pointerY;
+        if (immediate || reducedMotion.matches) {
+          cursorX(x, x);
+          cursorY(y, y);
+        } else {
+          cursorX(x);
+          cursorY(y);
+        }
+      };
+
+      const showCursor = (show: boolean) => {
+        if (!cursor || show === cursorShown) return;
+        cursorShown = show;
+        if (show) moveCursor(true);
+        gsap.to(cursor, {
+          autoAlpha: show ? 1 : 0,
+          scale: show ? 1 : 0.6,
+          duration: reducedMotion.matches ? 0 : show ? 0.3 : 0.2,
+          ease: show ? "power3.out" : "power2.out",
+          overwrite: "auto",
+        });
+      };
+
+      const pressCursor = (pressed: boolean) => {
+        if (!cursor || !cursorShown) return;
+        gsap.to(cursor, {
+          scale: pressed ? 0.85 : 1,
+          duration: reducedMotion.matches ? 0 : 0.2,
+          ease: "power2.out",
+          overwrite: "auto",
+        });
+      };
+
+      // Shown while dragging, or while a mouse hovers the slider but not a live-site link.
+      const updateCursor = () => {
+        if (!hasMousePointer || !finePointer.matches) {
+          showCursor(false);
+          return;
+        }
+        const rect = viewport.getBoundingClientRect();
+        const overViewport = pointerX >= rect.left && pointerX <= rect.right && pointerY >= rect.top && pointerY <= rect.bottom;
+        showCursor(dragPointerId !== null || (overViewport && !overLiveLink));
+      };
+
+      // Dragging
+      const onPointerDown = (event: PointerEvent) => {
+        if (!event.isPrimary || event.button !== 0 || dragPointerId !== null || !slideWidth) return;
+        if (event.target instanceof Element && event.target.closest("a[href]")) return;
+        gsap.killTweensOf(position);
+        dragPointerId = event.pointerId;
+        dragStartX = event.clientX;
+        dragLastX = event.clientX;
+        dragStartPosition = position.x;
+        dragStartIndex = currentIndex;
+        viewport.setPointerCapture(event.pointerId);
+        pressCursor(true);
+      };
+
+      const onPointerMove = (event: PointerEvent) => {
+        if (event.pointerId !== dragPointerId) return;
+        dragLastX = event.clientX;
+        position.x = dragStartPosition + event.clientX - dragStartX;
+        render();
+      };
+
+      const onPointerEnd = (event: PointerEvent) => {
+        if (event.pointerId !== dragPointerId) return;
+        const cancelled = event.type !== "pointerup";
+        const dragDistance = event.clientX - dragStartX;
+        if (!cancelled) {
+          position.x = dragStartPosition + dragDistance;
+          render();
+        }
+        dragPointerId = null;
+        pressCursor(false);
+        updateCursor();
+        if (viewport.hasPointerCapture(event.pointerId)) viewport.releasePointerCapture(event.pointerId);
+        // Cancelled, or too short to count as a swipe: settle back.
+        if (cancelled || Math.abs(dragDistance) < 18) {
+          goTo(dragStartIndex);
+          return;
+        }
+
+        const direction = dragDistance < 0 ? 1 : -1;
+        const steps = Math.max(1, Math.round(Math.abs(dragDistance) / slideWidth));
+        // Fractional slide index where the drag began (a slide may have been mid-tween).
+        const startIndex = -dragStartPosition / slideWidth;
+        let target = direction > 0 ? Math.floor(startIndex + 1e-6) + steps : Math.ceil(startIndex - 1e-6) - steps;
+        // Dragging the way the interrupted tween was heading goes at least `steps` past its target.
+        if (Math.sign(dragStartIndex - startIndex) === direction) {
+          target = direction > 0 ? Math.max(target, dragStartIndex + steps) : Math.min(target, dragStartIndex - steps);
+        }
+        goTo(target);
+      };
+
+      window.addEventListener(
+        "pointermove",
+        (event) => {
+          if (event.pointerType === "touch") {
+            hasMousePointer = false;
+            updateCursor();
+            return;
+          }
+          pointerX = event.clientX;
+          pointerY = event.clientY;
+          hasMousePointer = true;
+          pointerMoved = true;
+          overLiveLink = event.target instanceof Element && !!event.target.closest("[data-live-link]");
+          if (cursorShown) moveCursor(false);
+        },
+        { passive: true, signal },
+      );
+
+      // Each frame, re-check the cursor while the slider is near the screen:
+      // scrolling moves the slider under a still pointer.
+      const checkCursor = () => {
+        if (!sliderNearView && !cursorShown) {
+          pointerMoved = false;
+          return;
+        }
+        if (hasMousePointer || cursorShown || pointerMoved) updateCursor();
+        pointerMoved = false;
+      };
+      gsap.ticker.add(checkCursor);
+
+      // Decode every slide image (once per URL) before the slider is reached, so dragging never stalls on decoding.
+      let imagesDecoded = false;
+      const decodeImages = () => {
+        if (imagesDecoded) return;
+        imagesDecoded = true;
+        const seen = new Set<string>();
+        track.querySelectorAll("img").forEach((img) => {
+          const src = img.currentSrc || img.src;
+          if (seen.has(src)) return;
+          seen.add(src);
+          img.decode().catch(() => {});
+        });
+      };
+      const visibilityObserver = new IntersectionObserver(
+        ([entry]) => {
+          sliderNearView = entry.isIntersecting;
+          if (sliderNearView) decodeImages();
+          else updateCursor();
+        },
+        { rootMargin: "100% 0px" },
+      );
+      visibilityObserver.observe(viewport);
+
+      // Pointer left the window.
+      document.addEventListener(
+        "pointerout",
+        (event) => {
+          if (event.relatedTarget) return;
+          hasMousePointer = false;
+          updateCursor();
+        },
+        { signal },
+      );
+      window.addEventListener(
+        "blur",
+        () => {
+          hasMousePointer = false;
+          updateCursor();
+        },
+        { signal },
+      );
+      this.querySelector("[data-slider-previous]")?.addEventListener("click", () => goTo(currentIndex - 1), { signal });
+      this.querySelector("[data-slider-next]")?.addEventListener("click", () => goTo(currentIndex + 1), { signal });
+      viewport.addEventListener("pointerdown", onPointerDown, { signal });
+      viewport.addEventListener("pointermove", onPointerMove, { signal });
+      viewport.addEventListener("pointerup", onPointerEnd, { signal });
+      viewport.addEventListener("pointercancel", onPointerEnd, { signal });
+      viewport.addEventListener("lostpointercapture", onPointerEnd, { signal });
+
+      const resizeObserver = new ResizeObserver(measure);
+      measure();
+      resizeObserver.observe(viewport);
+
+      // The first real slide's preview waits until its image is well into the screen.
+      const firstMedia = track.children[projectCount]?.querySelector("[data-project-media]");
+      const introTrigger = firstMedia
+        ? ScrollTrigger.create({
+            trigger: firstMedia,
+            start: "top 55%",
+            once: true,
+            onEnter: () => {
+              introStarted = true;
+              const state = reveals.get(0);
+              if (state?.axis === "y" && !state.timeline) playReveal(state);
+            },
+          })
+        : undefined;
+
+      // If the first image loads after layout and changes height, trigger positions are stale.
+      const firstImage = firstMedia?.querySelector("img");
+      if (firstImage && !firstImage.complete) {
+        const initialHeight = firstImage.offsetHeight;
+        firstImage.addEventListener(
+          "load",
+          () => {
+            if (firstImage.offsetHeight !== initialHeight) ScrollTrigger.refresh();
+          },
+          { once: true, signal },
+        );
+      }
+
+      this.cleanup = () => {
+        controller.abort();
+        resizeObserver.disconnect();
+        introTrigger?.kill();
+        gsap.killTweensOf(position);
+        gsap.ticker.remove(checkCursor);
+        gsap.ticker.remove(flushPaint);
+        visibilityObserver.disconnect();
+        if (cursor) {
+          gsap.killTweensOf(cursor);
+          gsap.set(cursor, { autoAlpha: 0 });
+          this.appendChild(cursor);
+        }
+        reveals.forEach((state) => state.timeline?.kill());
+        reveals.clear();
+      };
+    }
+
+    disconnectedCallback() {
+      this.cleanup?.();
+      this.cleanup = undefined;
+    }
+  }
+
+  customElements.get("featured-work-slider") || customElements.define("featured-work-slider", FeaturedWorkSlider);
+</script>
+
+<style>
+  [data-track] {
+    will-change: transform;
+  }
+  [data-project-overlay] {
+    will-change: opacity;
+  }
+  [data-project-animated] {
+    will-change: transform;
+  }
+  .drag-cursor {
+    z-index: 50;
+    aspect-ratio: 1;
+    background-color: var(--color-neutral-100);
+    color: var(--color-neutral-900);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-neutral-900) 20%, transparent);
+    white-space: nowrap;
+    pointer-events: none;
+    -webkit-user-select: none;
+    user-select: none;
+    opacity: 0;
+    visibility: hidden;
+    will-change: transform, opacity;
+    border-radius: 50%;
+    place-items: center;
+    padding: 16px;
+    display: grid;
+    position: fixed;
+    top: 0;
+    left: 0;
+  }
+  .drag-cursor-content {
+    align-items: center;
+    gap: 6px;
+    display: flex;
+  }
+  .drag-cursor :global(.drag-cursor-arrow) {
+    flex-shrink: 0;
+    width: 7px;
+    height: 7px;
+  }
+</style>

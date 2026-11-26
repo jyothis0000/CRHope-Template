@@ -1,0 +1,265 @@
+---
+/**
+ * Button or link with an optional asterisk icon that morphs into an arrow on hover.
+ * Renders an <a> when `href` is set, otherwise a <button>. Extra attributes
+ * (target, aria-*, data-*, style…) pass straight through to that element.
+ */
+import type { HTMLAttributes } from "astro/types";
+
+type Props = HTMLAttributes<"a"> &
+  HTMLAttributes<"button"> & {
+    label: string;
+    href?: string;
+    variant?: "black" | "white";
+    size?: "md" | "lg";
+    icon?: boolean;
+  };
+
+const { label, href, variant = "black", size = "md", icon = false, class: className, ...rest } = Astro.props;
+const Tag = href ? "a" : "button";
+const typeClass = size === "lg" ? "type-author-semibold-18" : "type-author-semibold-16";
+
+// The asterisk (points) and the arrow it morphs into (data-arrow-points) share a vertex count.
+const asterisk = `100,42.4 68.2,42.4 90.7,20 80,9.3 57.6,31.8 57.6,0 42.4,0 42.4,31.8 20,9.3 9.3,20 31.8,42.4 0,42.4 0,57.6 31.8,57.6 9.3,80 20,90.7 42.4,68.2 42.4,100 57.6,100 57.6,68.2 80,90.7 90.7,80 68.2,57.6 100,57.6`;
+const arrow = `99.97464788732394,41.169629629629625 99.97464788732394,41.169629629629625 79.97957746478873,28.024768518518517 73.31408450704225,23.643194444444443 73.31408450704225,23.76601851851852 73.31408450704225,23.76601851851852 37.32394366197183,0 37.32394366197183,0 37.32394366197183,0 17.3556338028169,13.127314814814813 59.34507042253521,40.6087962962963 0,40.6087962962963 0,59.25694444444445 59.34507042253521,59.25694444444445 17.3556338028169,86.73842592592592 37.32394366197183,99.86574074074075 37.32394366197183,99.86574074074075 37.32394366197183,99.86574074074075 73.31408450704225,76.09953703703704 73.31408450704225,76.09953703703704 73.31408450704225,76.22268518518518 73.31408450704225,76.22268518518518 99.97464788732394,58.6962962962963 99.97464788732394,58.6962962962963`;
+---
+
+<swap-cta>
+  <Tag
+    {...rest}
+    href={href}
+    type={href ? undefined : (rest.type ?? "button")}
+    data-cta-button
+    data-variant={variant}
+    data-size={size}
+    data-icon={String(icon)}
+    class:list={["cta-button", typeClass, className]}
+  >
+    {
+      icon && (
+        <span class="cta-icon" aria-hidden="true">
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" fill="currentColor" focusable="false">
+            <polygon points={asterisk} data-arrow-points={arrow} fill-rule="evenodd" />
+          </svg>
+        </span>
+      )
+    }
+    <span class="cta-label" data-cta-label>{label}</span>
+  </Tag>
+</swap-cta>
+
+<script>
+  import { gsap } from "gsap";
+
+  // Hover/focus: the label slides and the asterisk morphs into an arrow.
+  class SwapCta extends HTMLElement {
+    cleanup?: () => void;
+
+    connectedCallback() {
+      if (this.cleanup) return;
+      const button = this.querySelector<HTMLElement>("[data-cta-button]");
+      const label = this.querySelector<HTMLElement>("[data-cta-label]");
+      const polygon = this.querySelector("polygon");
+      if (!button || !label || !polygon) return;
+
+      const arrowPoints = polygon.getAttribute("data-arrow-points");
+      const asteriskPoints = polygon.getAttribute("points");
+      if (!arrowPoints || !asteriskPoints) return;
+
+      const controller = new AbortController();
+      const { signal } = controller;
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+      let hovered = false;
+      let focused = false;
+
+      const measureLabel = () => {
+        button.style.setProperty("--label-width", `${label.getBoundingClientRect().width}px`);
+      };
+      measureLabel();
+      const resizeObserver = new ResizeObserver(measureLabel);
+      resizeObserver.observe(label);
+
+      const timeline = gsap.timeline({ paused: true, defaults: { duration: 0.6, ease: "power3.inOut" } });
+      timeline.to(button, { "--progress": 1 }, 0).to(polygon, { attr: { points: arrowPoints } }, 0);
+
+      const update = () => {
+        const active = !button.matches(":disabled") && (hovered || focused);
+        if (reducedMotion.matches) {
+          timeline.progress(active ? 1 : 0).pause();
+          return;
+        }
+        active ? timeline.play() : timeline.reverse();
+      };
+
+      button.addEventListener(
+        "pointerenter",
+        (event) => {
+          if (event.pointerType === "touch") return;
+          hovered = true;
+          update();
+        },
+        { signal },
+      );
+      const leave = () => {
+        hovered = false;
+        update();
+      };
+      button.addEventListener("pointerleave", leave, { signal });
+      button.addEventListener("pointercancel", leave, { signal });
+      button.addEventListener(
+        "focus",
+        () => {
+          focused = button.matches(":focus-visible");
+          update();
+        },
+        { signal },
+      );
+      button.addEventListener(
+        "blur",
+        () => {
+          focused = false;
+          update();
+        },
+        { signal },
+      );
+      reducedMotion.addEventListener("change", update, { signal });
+
+      this.cleanup = () => {
+        controller.abort();
+        resizeObserver.disconnect();
+        timeline.kill();
+        button.style.removeProperty("--progress");
+        button.style.removeProperty("--label-width");
+        polygon.setAttribute("points", asteriskPoints);
+      };
+    }
+
+    disconnectedCallback() {
+      this.cleanup?.();
+      this.cleanup = undefined;
+    }
+  }
+
+  customElements.get("swap-cta") || customElements.define("swap-cta", SwapCta);
+</script>
+
+<style>
+  swap-cta {
+    vertical-align: middle;
+    display: inline-flex;
+  }
+  .cta-button {
+    --progress: 0;
+    --label-width: 0px;
+    --cta-icon: 14px;
+    --cta-gap: 8px;
+    --cta-pad-y: 7px;
+    --cta-pad-left: 10px;
+    --cta-pad-right: 14px;
+    --cta-pad-text: 12px;
+    --cta-hover-inset: 11px;
+    --cta-icon-travel: 12px;
+    --cta-radius: var(--radius-sm);
+    grid-template-columns: var(--cta-icon) max-content;
+    justify-content: start;
+    align-items: center;
+    column-gap: var(--cta-gap);
+    padding: var(--cta-pad-y) var(--cta-pad-right) var(--cta-pad-y) var(--cta-pad-left);
+    border-radius: var(--cta-radius);
+    white-space: nowrap;
+    cursor: pointer;
+    border: 0;
+    text-decoration: none;
+    transition:
+      background-color 0.2s,
+      box-shadow 0.2s;
+    display: inline-grid;
+  }
+  .cta-button[data-size="lg"] {
+    --cta-icon: 20px;
+    --cta-gap: 10px;
+    --cta-pad-y: 12px;
+    --cta-pad-left: 16px;
+    --cta-pad-right: 21px;
+    --cta-pad-text: 20px;
+    --cta-hover-inset: 17px;
+    --cta-icon-travel: 16px;
+    --cta-radius: var(--radius-lg);
+  }
+  @media (width<=47.99rem) {
+    .cta-button[data-size="lg"] {
+      --cta-icon: 17px;
+      --cta-gap: 9px;
+      --cta-pad-y: 10px;
+      --cta-pad-left: 13px;
+      --cta-pad-right: 17px;
+      --cta-pad-text: 17px;
+      --cta-hover-inset: 14px;
+      --cta-icon-travel: 14px;
+    }
+  }
+  .cta-button[data-variant="black"] {
+    background-color: var(--color-neutral-900);
+    color: var(--color-neutral-200);
+  }
+  .cta-button[data-variant="black"]:not(:disabled):is(:hover, :focus-visible) {
+    background-color: var(--color-neutral-700);
+  }
+  .cta-button[data-variant="white"] {
+    background-color: var(--color-neutral-100);
+    color: var(--color-neutral-900);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-neutral-900) 20%, transparent);
+  }
+  .cta-button[data-variant="white"]:not(:disabled):is(:hover, :focus-visible) {
+    background-color: var(--color-neutral-200);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-neutral-900) 35%, transparent);
+  }
+  .cta-button[data-icon="false"] {
+    padding: var(--cta-pad-y) var(--cta-pad-text);
+    grid-template-columns: max-content;
+    column-gap: 0;
+  }
+  .cta-button:focus-visible {
+    outline: 2px solid var(--color-neutral-700);
+    outline-offset: 4px;
+  }
+  .cta-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .cta-icon {
+    width: var(--cta-icon);
+    height: var(--cta-icon);
+    pointer-events: none;
+    transform: translateX(calc(var(--progress) * (var(--label-width) + var(--cta-icon-travel))));
+    justify-content: flex-start;
+    align-items: center;
+    display: flex;
+  }
+  .cta-icon svg {
+    width: calc(var(--cta-icon) * (1 - 5 / 14 * var(--progress)));
+    height: calc(var(--cta-icon) * (1 - 2 / 14 * var(--progress)));
+    flex: none;
+    display: block;
+    overflow: visible;
+  }
+  .cta-label {
+    display: block;
+  }
+  .cta-button[data-icon="true"] .cta-label {
+    transform: translateX(
+      calc((var(--cta-hover-inset) - var(--cta-pad-left) - var(--cta-icon) - var(--cta-gap)) * var(--progress))
+    );
+  }
+  .cta-button[data-variant="white"][data-icon="false"] {
+    transition:
+      background-color 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cta-button,
+    .cta-button[data-variant="white"][data-icon="false"] {
+      transition: none;
+    }
+  }
+</style>

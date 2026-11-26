@@ -1,0 +1,87 @@
+---
+// Dark section: client logos (each dissolves into noise on hover) and the testimonial carousel.
+import DarkReveal from "./DarkReveal.astro";
+import NoiseDissolve from "./NoiseDissolve.astro";
+import TestimonialCarousel from "./TestimonialCarousel.astro";
+
+// `width` sizes each logo so they read at a similar visual weight.
+const clients = [
+  { name: "Pichichi", logo: "/client-logos/pichichi-logo.svg", width: "85%" },
+  { name: "Smartests", logo: "/client-logos/smartests-logo.svg", width: "75%" },
+  { name: "Aboutwrap", logo: "/client-logos/aboutwrap-logo.svg", width: "70%" },
+  { name: "Jeppesen", logo: "/client-logos/jeppesen-logo.svg", width: "70%" },
+  { name: "Mario Hino", logo: "/client-logos/mariohino-logo.svg", width: "70%" },
+  { name: "Miel España", logo: "/client-logos/mielespaña-logo.svg", width: "80%" },
+];
+
+// Shared noise-dissolve settings; the effect triggers on hovering the whole tile.
+const dissolve = {
+  "data-variant": "static",
+  "data-amount": "0.3",
+  "data-out": "360",
+  "data-in": "760",
+  "data-fps": "30",
+  "data-boil": "14",
+  "data-grain": "0.5",
+  "data-tone": "0.25",
+  "data-scatter": "3",
+  "data-trigger": "li",
+};
+
+const testimonials = [
+  {
+    quote:
+      "Lucas took the time to understand our business and helped us bring all the different parts of aboutwrap together. It feels good to work with someone that has the same attention and obsession to detail as we have. Having one person look after the whole process made things much easier.",
+    name: "Dan Ionut, Aboutwrap",
+    avatar: "/testimonials/dan-aboutwrap.webp",
+  },
+  {
+    quote:
+      "I had a clear vision for the website, and Lucas really respected that. He paid attention to the design and the small details, finding ways to make the animations and video work without compromising the experience.",
+    name: "Mario Hinojal, Mariohino",
+    avatar: "/testimonials/mario-hinojal.webp",
+  },
+  {
+    quote:
+      "Lucas worked closely with us for two years, handling a wide range of technical work across our ecommerce sites. He became a real part of the team, someone we could talk ideas through with and rely on to find practical solutions.",
+    name: "Kike Rubio, Positiva Brands",
+    avatar: "/testimonials/kike-rubio.webp",
+  },
+];
+---
+
+<DarkReveal pin={0.15} narrow aria-label="Clients and testimonials">
+  <div class="grid grid-cols-12 gap-gutter mx-auto max-w-none w-full">
+    <div
+      data-testimonials-and-clients
+      class="col-span-12 grid grid-cols-1 gap-x-gutter gap-y-14 lg:col-span-10 lg:col-start-2 lg:grid-cols-10"
+    >
+      <!-- First: clients heading, then individual client logos. -->
+      <div class="min-w-0 lg:col-span-6">
+        <h2 data-dark-item="text" class="overflow-hidden type-clash-semibold-32 mb-6">
+          <span data-reveal-inner class="block">Clients we’ve helped</span>
+        </h2>
+        <ul data-dark-item="stagger" class="grid grid-cols-2 gap-gutter sm:grid-cols-3">
+          {
+            clients.map(({ name, logo, width }) => (
+              <li data-dark-child class="flex aspect-[7/4] items-center justify-center rounded-lg border border-neutral-700 px-gutter">
+                <NoiseDissolve style={`width: ${width}`} {...dissolve}>
+                  <img src={logo} alt={name} loading="lazy" decoding="async" class="h-auto max-h-16 w-full object-contain" />
+                </NoiseDissolve>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+      <!-- Testimonials heading, followed by the carousel. -->
+      <div class="min-w-0 lg:col-span-3 lg:col-start-8">
+        <h2 data-dark-item="text" class="overflow-hidden type-clash-semibold-32 mb-4 3xl:mb-14">
+          <span data-reveal-inner class="block">Testimonials</span>
+        </h2>
+        <div data-dark-item>
+          <TestimonialCarousel testimonials={testimonials} autoplay />
+        </div>
+      </div>
+    </div>
+  </div>
+</DarkReveal>

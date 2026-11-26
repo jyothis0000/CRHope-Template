@@ -1,0 +1,629 @@
+---
+/**
+ * Fixed logo + header buttons, and the slide-in site menu. The menu panel
+ * doubles as the page transition: it covers the page before a ClientRouter
+ * navigation and slides off to reveal the new one.
+ */
+import CtaButton from "./CtaButton.astro";
+import LanguageSwitcher from "./LanguageSwitcher.astro";
+
+const email = "lucas@jeppesen.dev";
+const bookingUrl = "https://cal.com/lucasbjeppesen/30min-english?lang=en";
+
+const navLinks = [
+  { label: "Home", href: "/" },
+  { label: "Work", href: "/work/" },
+  { label: "About", href: "/about/" },
+];
+
+const metaLinks = [
+  { label: "LinkedIn", href: "https://www.linkedin.com/in/lucas-b-jeppesen-147a18304/", cta: "menu_linkedin" },
+  { label: "Book a call", href: bookingUrl, cta: "menu_book_call" },
+];
+
+// Same rule as the script: ignore trailing slashes.
+const normalizePath = (path: string) => (path === "/" ? "/" : path.replace(/\/+$/, ""));
+const currentPath = normalizePath(Astro.url.pathname);
+---
+
+<!--
+  Persisted across ClientRouter navigations: the panel stays on screen
+  while the page underneath is swapped, then reveals the new page.
+  One per language: switching language is a full page load, and the key
+  keeps a header from one language from ever being kept on another.
+-->
+<site-header transition:persist="site-header-en">
+  <header>
+    <!--
+      The logo lives on its own fixed layer so it can keep the
+      difference blend against the page. The buttons sit on a
+      separate layer without blending, so their colors stay true.
+    -->
+    <a
+      href="/"
+      aria-label="Home"
+      data-menu-logo
+      data-cta="header_logo"
+      class="site-logo fixed top-0 left-0 z-60 block px-site-margin pt-site-margin mix-blend-difference"
+    >
+      <img
+        src="/logo-files/asterisco-icono-invertido.svg"
+        alt="Jeppesen asterisk"
+        width="35"
+        height="40"
+        class="site-logo-mark mt-1 h-8 w-7 sm:mt-0 sm:h-10 sm:w-8.75"
+      />
+    </a>
+    <div
+      data-menu-actions
+      class="menu-actions fixed top-0 right-0 z-60 flex h-10 items-center gap-2 pr-site-margin box-content pt-site-margin"
+    >
+      <CtaButton
+        label="Talk to Lucas"
+        href={bookingUrl}
+        variant="black"
+        icon
+        data-cta="header_contact"
+        target="_blank"
+        rel="noopener noreferrer"
+      />
+      <CtaButton
+        label="Menu"
+        variant="white"
+        data-menu-toggle
+        data-label-open="Close"
+        data-label-closed="Menu"
+        aria-expanded="false"
+        aria-controls="site-menu"
+      />
+    </div>
+  </header>
+  <div data-menu-scrim aria-hidden="true" class="menu-scrim fixed inset-0 z-40"></div>
+  <div
+    id="site-menu"
+    data-menu-panel
+    aria-label="Site menu"
+    class="menu-panel fixed top-0 left-0 z-50 h-dvh w-screen bg-neutral-900 text-neutral-100"
+  >
+    <div data-menu-inner class="menu-inner flex h-full flex-col justify-between p-site-margin">
+      <nav aria-label="Main">
+        <ul class="flex flex-col">
+          {
+            navLinks.map(({ label, href }) => (
+              <li class="line-wrapper">
+                <a
+                  href={href}
+                  data-menu-link
+                  data-cta="menu_nav"
+                  aria-current={normalizePath(href) === currentPath ? "page" : undefined}
+                  class="menu-link type-clash-semibold-32 group flex items-baseline gap-4"
+                >
+                  <span class="menu-link-label">{label}</span>
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </nav>
+      <div
+        data-menu-footer
+        class="flex flex-col gap-6 font-author text-fluid-16 sm:flex-row sm:items-end sm:justify-between"
+      >
+        <div class="flex flex-col gap-1">
+          <a href={`mailto:${email}`} class="menu-meta-link" data-cta="menu_email">{email}</a>
+        </div>
+        <ul class="menu-meta-links flex gap-6">
+          {
+            metaLinks.map(({ label, href, cta }) => (
+              <li>
+                <a href={href} target="_blank" rel="noopener noreferrer" class="menu-meta-link" data-cta={cta}>{label}</a>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+      <!--
+        Top right corner of the menu, in line with the header buttons
+        the panel pushes to its left. On phones those buttons sit on
+        top of the panel, so it drops to the bottom right corner.
+        Kept out of the footer: the footer's entrance leaves a transform
+        on it, which would anchor this to the footer instead.
+      -->
+      <div data-menu-language class="menu-language">
+        <LanguageSwitcher />
+      </div>
+    </div>
+  </div>
+</site-header>
+
+<script>
+  import { gsap } from "gsap";
+  import { ScrollSmoother } from "gsap/ScrollSmoother";
+  import type { TransitionBeforePreparationEvent } from "astro:transitions/client";
+
+  // How far the page drifts with the panel (fraction of the panel's travel).
+  const OPEN_PARALLAX = 0.18;
+  const REVEAL_PARALLAX = 0.12;
+  // Space kept between the logo and the buttons when the buttons push it left.
+  const LOGO_GAP = 8;
+  // Longest a navigation waits for the panel to cover the page.
+  const COVER_TIMEOUT = 2000;
+
+  const normalizePath = (path: string) => (path === "/" ? "/" : path.replace(/\/+$/, ""));
+
+  type MenuState = "idle" | "open" | "closing" | "leaving" | "revealing";
+
+  class SiteHeader extends HTMLElement {
+    cleanup?: () => void;
+
+    connectedCallback() {
+      if (this.cleanup) return;
+      const toggle = this.querySelector<HTMLElement>("[data-menu-toggle]");
+      const toggleLabel = toggle?.querySelector<HTMLElement>("[data-cta-label]");
+      const actions = this.querySelector<HTMLElement>("[data-menu-actions]");
+      const logo = this.querySelector<HTMLElement>("[data-menu-logo]");
+      const panel = this.querySelector<HTMLElement>("[data-menu-panel]");
+      const inner = this.querySelector<HTMLElement>("[data-menu-inner]");
+      const scrim = this.querySelector<HTMLElement>("[data-menu-scrim]");
+      const footer = this.querySelector<HTMLElement>("[data-menu-footer]");
+      const language = this.querySelector<HTMLElement>("[data-menu-language]");
+      const links = [...this.querySelectorAll<HTMLAnchorElement>("[data-menu-link]")];
+      if (!toggle || !toggleLabel || !actions || !logo || !panel || !inner || !scrim) return;
+
+      const controller = new AbortController();
+      const { signal } = controller;
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+      let state: MenuState = "idle";
+      let edgeTween: gsap.core.Tween | undefined;
+      let contentTimeline: gsap.core.Timeline | undefined;
+      // x of the panel's left edge: vw = off screen right, 0 = full cover, -vw = off screen left.
+      const panelPosition = { edge: 0 };
+      const setPanelX = gsap.quickSetter(panel, "x", "px");
+      const setActionsX = gsap.quickSetter(actions, "x", "px");
+      const setLogoX = gsap.quickSetter(logo, "x", "px");
+      const getPage = () => document.querySelector<HTMLElement>("#smooth-wrapper");
+
+      const measure = () => {
+        const vw = window.innerWidth;
+        const menuW = inner.offsetWidth;
+        // Phones: the menu is full width and the buttons stay on top of it.
+        const overlaps = menuW >= vw - 1;
+        const logoPadding = parseFloat(getComputedStyle(logo).paddingRight);
+        this.toggleAttribute("data-overlaps", overlaps);
+        return { vw, menuW, overlaps, actionsLeft: vw - actions.offsetWidth, logoRight: logo.offsetWidth - logoPadding };
+      };
+
+      let layout = measure();
+      panelPosition.edge = layout.vw;
+      gsap.set(panel, { x: layout.vw });
+
+      const openEdge = () => (layout.overlaps ? 0 : layout.vw - layout.menuW);
+
+      // Draws everything that follows the panel edge: panel, page parallax, buttons, logo, scrim.
+      const render = () => {
+        const { vw, menuW, overlaps, actionsLeft, logoRight } = layout;
+        const { edge } = panelPosition;
+        const page = getPage();
+        const motion = reducedMotion.matches ? 0 : 1;
+        setPanelX(edge);
+        panel.style.visibility = edge > -vw && edge < vw ? "visible" : "hidden";
+
+        let progress: number;
+        if (state === "revealing") {
+          progress = (vw + edge) / vw;
+          if (page) gsap.set(page, { x: (vw + edge) * REVEAL_PARALLAX * motion });
+        } else {
+          const covered = vw - edge;
+          progress = Math.min(1, covered / menuW);
+          if (page) gsap.set(page, { x: -covered * OPEN_PARALLAX * motion });
+          if (!overlaps) {
+            // The panel pushes the buttons; the logo only moves once the buttons reach it.
+            const actionsShift = Math.min(0, edge - vw);
+            const logoShift = Math.min(0, actionsLeft + actionsShift - LOGO_GAP - logoRight);
+            setActionsX(actionsShift);
+            setLogoX(logoShift);
+          }
+        }
+        scrim.style.opacity = String(progress);
+        scrim.style.visibility = progress > 0 ? "visible" : "hidden";
+      };
+
+      // Resolves true when the panel arrives, false if another move interrupts it.
+      const moveEdge = (target: number, duration: number, ease: string): Promise<boolean> => {
+        edgeTween?.kill();
+        if (reducedMotion.matches || duration <= 0) {
+          panelPosition.edge = target;
+          render();
+          return Promise.resolve(true);
+        }
+        return new Promise((resolve) => {
+          edgeTween = gsap.to(panelPosition, {
+            edge: target,
+            duration,
+            ease,
+            onUpdate: render,
+            onComplete: () => resolve(true),
+            onInterrupt: () => resolve(false),
+          });
+        });
+      };
+
+      const setLabel = (text: string, animate = true) => {
+        if (toggleLabel.textContent?.trim() === text) return;
+        if (!animate || reducedMotion.matches) {
+          gsap.killTweensOf(toggleLabel);
+          gsap.set(toggleLabel, { opacity: 1 });
+          toggleLabel.textContent = text;
+          return;
+        }
+        gsap
+          .timeline()
+          .to(toggleLabel, { opacity: 0, duration: 0.12, ease: "power1.in" })
+          .add(() => {
+            toggleLabel.textContent = text;
+          })
+          .to(toggleLabel, { opacity: 1, duration: 0.2, ease: "power1.out" });
+      };
+
+      const setOpen = (open: boolean, animate = true) => {
+        this.toggleAttribute("data-open", open);
+        toggle.setAttribute("aria-expanded", String(open));
+        setLabel(open ? (toggle.dataset.labelOpen ?? "Close") : (toggle.dataset.labelClosed ?? "Menu"), animate);
+      };
+
+      const lockScroll = (locked: boolean) => {
+        const smoother = ScrollSmoother.get();
+        if (smoother) smoother.paused(locked);
+        document.documentElement.style.overflow = locked && !smoother ? "hidden" : "";
+      };
+
+      const setPageInert = (inert: boolean) => {
+        const page = getPage();
+        if (page) page.inert = inert;
+      };
+
+      // Back to closed, with every inline style the animations left behind removed.
+      const reset = () => {
+        edgeTween?.kill();
+        contentTimeline?.kill();
+        state = "idle";
+        layout = measure();
+        panelPosition.edge = layout.vw;
+        this.removeAttribute("data-revealing");
+        this.removeAttribute("data-covering");
+        setOpen(false, false);
+        gsap.set(panel, { x: layout.vw, visibility: "hidden" });
+        gsap.set(scrim, { clearProps: "opacity,visibility" });
+        gsap.set([actions, logo], { clearProps: "transform" });
+        gsap.set(inner, { clearProps: "opacity" });
+        const page = getPage();
+        if (page) {
+          gsap.set(page, { clearProps: "transform" });
+          page.inert = false;
+        }
+        lockScroll(false);
+      };
+
+      const openMenu = () => {
+        if (state !== "idle" && state !== "closing") return;
+        layout = measure();
+        state = "open";
+        setOpen(true);
+        lockScroll(true);
+        setPageInert(true);
+        gsap.set(inner, { opacity: 1 });
+        moveEdge(openEdge(), 1, "expo.out");
+        contentTimeline?.kill();
+        if (!reducedMotion.matches) {
+          contentTimeline = gsap.timeline({ delay: 0.15 });
+          contentTimeline.fromTo(
+            links,
+            { yPercent: 110 },
+            { yPercent: 0, duration: 0.9, ease: "expo.out", stagger: 0.06 },
+            0,
+          );
+          const extras = [footer, language].filter((element) => element !== null);
+          if (extras.length) {
+            contentTimeline.fromTo(
+              extras,
+              { autoAlpha: 0, y: 12 },
+              { autoAlpha: 1, y: 0, duration: 0.6, ease: "power2.out" },
+              0.25,
+            );
+          }
+        }
+        requestAnimationFrame(() => links[0]?.focus({ preventScroll: true }));
+      };
+
+      const closeMenu = async () => {
+        if (state !== "open") return;
+        state = "closing";
+        setOpen(false);
+        toggle.focus({ preventScroll: true });
+        if ((await moveEdge(layout.vw, 0.8, "expo.inOut")) && state === "closing") reset();
+      };
+
+      // Before a navigation: slide the panel (empty) over the whole page.
+      const coverPage = async () => {
+        layout = measure();
+        const wasIdle = state === "idle";
+        if (state !== "revealing") state = "leaving";
+        this.setAttribute("data-covering", "");
+        lockScroll(true);
+        setPageInert(true);
+        contentTimeline?.kill();
+        if (wasIdle) gsap.set(inner, { opacity: 0 });
+        else gsap.to(inner, { opacity: 0, duration: 0.3, ease: "power1.out" });
+        await moveEdge(0, wasIdle ? 1 : 0.85, "power3.inOut");
+      };
+
+      // After the swap: slide the panel off to the left, uncovering the new page.
+      const revealPage = async () => {
+        layout = measure();
+        state = "revealing";
+        this.setAttribute("data-revealing", "");
+        gsap.set([actions, logo], { clearProps: "transform" });
+        document.documentElement.style.overflow = "";
+        panelPosition.edge = 0;
+        render();
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        if ((await moveEdge(-layout.vw, 1.1, "power4.inOut")) && state === "revealing") reset();
+      };
+
+      const markCurrentLink = () => {
+        const current = normalizePath(location.pathname);
+        for (const link of links) {
+          if (normalizePath(link.pathname) === current) link.setAttribute("aria-current", "page");
+          else link.removeAttribute("aria-current");
+        }
+      };
+
+      markCurrentLink();
+
+      // Hold the navigation until the page is covered (or the timeout passes).
+      document.addEventListener(
+        "astro:before-preparation",
+        (event) => {
+          if (reducedMotion.matches) return;
+          const preparation = event as TransitionBeforePreparationEvent;
+          const originalLoader = preparation.loader;
+          const covered = coverPage();
+          const timeout = new Promise((resolve) => setTimeout(resolve, COVER_TIMEOUT));
+          preparation.loader = async () => {
+            await Promise.all([originalLoader(), Promise.race([covered, timeout])]);
+          };
+        },
+        { signal },
+      );
+
+      document.addEventListener(
+        "astro:before-swap",
+        () => {
+          if (state === "leaving" || state === "revealing") {
+            // Keep the new page covered until page-load starts the reveal.
+            edgeTween?.kill();
+            panelPosition.edge = 0;
+            render();
+            this.setAttribute("data-revealing", "");
+            ScrollSmoother.get()?.paused(false);
+            gsap.set([actions, logo], { clearProps: "transform" });
+            setOpen(false, false);
+            return;
+          }
+          reset();
+        },
+        { signal },
+      );
+
+      document.addEventListener(
+        "astro:page-load",
+        () => {
+          markCurrentLink();
+          if (this.hasAttribute("data-revealing") && state !== "idle") revealPage();
+        },
+        { signal },
+      );
+
+      toggle.addEventListener(
+        "click",
+        () => {
+          if (state === "open") closeMenu();
+          else if (state === "idle" || state === "closing") openMenu();
+        },
+        { signal },
+      );
+
+      scrim.addEventListener("click", () => void closeMenu(), { signal });
+
+      document.addEventListener(
+        "keydown",
+        (event) => {
+          if (event.key === "Escape") closeMenu();
+        },
+        { signal },
+      );
+
+      // A link to the page you're already on just closes the menu.
+      panel.addEventListener(
+        "click",
+        (event) => {
+          const link = (event.target as Element).closest("a");
+          if (
+            link &&
+            !link.target &&
+            link.origin === location.origin &&
+            normalizePath(link.pathname) === normalizePath(location.pathname) &&
+            !link.hash
+          ) {
+            event.preventDefault();
+            closeMenu();
+          }
+        },
+        { signal },
+      );
+
+      window.addEventListener(
+        "resize",
+        () => {
+          layout = measure();
+          if (state === "idle") {
+            panelPosition.edge = layout.vw;
+            gsap.set(panel, { x: layout.vw });
+            return;
+          }
+          if (state === "open" && !edgeTween?.isActive()) panelPosition.edge = openEdge();
+          render();
+        },
+        { signal },
+      );
+
+      this.cleanup = () => {
+        controller.abort();
+        edgeTween?.kill();
+        contentTimeline?.kill();
+        const page = getPage();
+        if (page) {
+          page.inert = false;
+          gsap.set(page, { clearProps: "transform" });
+        }
+        ScrollSmoother.get()?.paused(false);
+        document.documentElement.style.overflow = "";
+      };
+    }
+
+    // Moved along by transition:persist: keep the running state.
+    connectedMoveCallback() {}
+
+    disconnectedCallback() {
+      // Wait a tick: a persisted element is detached and re-attached during a swap.
+      queueMicrotask(() => {
+        if (this.isConnected) return;
+        this.cleanup?.();
+        this.cleanup = undefined;
+      });
+    }
+  }
+
+  customElements.get("site-header") || customElements.define("site-header", SiteHeader);
+</script>
+
+<style>
+  site-header {
+    --menu-width: 100vw;
+    display: contents;
+  }
+  @media (width>=40rem) {
+    site-header {
+      --menu-width: clamp(24rem, 40vw, 48rem);
+    }
+  }
+  .menu-panel {
+    visibility: hidden;
+    transform: translate(100vw);
+  }
+  .menu-inner {
+    width: var(--menu-width);
+    overscroll-behavior: contain;
+    position: relative;
+    overflow-y: auto;
+  }
+  .menu-language {
+    right: var(--spacing-site-margin);
+    bottom: var(--spacing-site-margin);
+    position: absolute;
+  }
+  @media (width>=40rem) {
+    .menu-language {
+      top: var(--spacing-site-margin);
+      align-items: center;
+      height: 2.5rem;
+      display: flex;
+      bottom: auto;
+    }
+  }
+  .menu-scrim {
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    opacity: 0;
+    visibility: hidden;
+    background-color: #00000059;
+  }
+  .menu-actions,
+  .site-logo {
+    will-change: transform;
+  }
+  .site-logo-mark {
+    --logo-turn: 45deg;
+    transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+    transform: rotate(0);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .site-logo:hover .site-logo-mark {
+      transform: rotate(var(--logo-turn));
+    }
+  }
+  .site-logo:focus-visible .site-logo-mark {
+    transform: rotate(var(--logo-turn));
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .site-logo-mark {
+      transition: none;
+    }
+  }
+  /* While revealing, the logo and buttons drop under the panel (unless they sit on top of it on phones). */
+  site-header[data-revealing]:not([data-overlaps]) :is(.site-logo, .menu-actions) {
+    z-index: 45;
+  }
+  site-header[data-overlaps]:is([data-open], [data-covering]) .menu-actions :global([data-variant="black"]) {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-neutral-100) 25%, transparent);
+  }
+  .menu-link {
+    color: var(--color-neutral-100);
+    transition: color 0.25s;
+  }
+  .menu-link-label {
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    display: inline-block;
+  }
+  nav:has(.menu-link:hover) .menu-link:not(:hover) {
+    color: color-mix(in srgb, var(--color-neutral-100) 40%, transparent);
+  }
+  .menu-link:is(:hover, :focus-visible) .menu-link-label {
+    transform: translate(0.25em);
+  }
+  .menu-link[aria-current="page"] .menu-link-label:after {
+    content: "*";
+    margin-left: 0.1em;
+  }
+  .menu-link:focus-visible {
+    outline: none;
+  }
+  .menu-link:focus-visible .menu-link-label {
+    text-underline-offset: 0.12em;
+    text-decoration: underline;
+    text-decoration-thickness: 0.06em;
+  }
+  .menu-meta-link:focus-visible {
+    outline: 2px solid var(--color-neutral-100);
+    outline-offset: 4px;
+  }
+  .menu-meta-link {
+    color: var(--color-neutral-100);
+  }
+  @media (width<=39.99rem) {
+    .menu-inner {
+      padding-top: calc(var(--spacing-site-margin) + 2.5rem + 1.5rem);
+    }
+    .menu-link {
+      font-size: clamp(2.5rem, 12vw, 3.5rem);
+      line-height: 1.1;
+    }
+    .menu-meta-link {
+      padding-block: 0.5rem;
+      display: inline-block;
+    }
+    .menu-meta-links {
+      padding-right: 5.5rem;
+    }
+  }
+</style>

@@ -1,0 +1,89 @@
+---
+/**
+ * Consent banner for analytics. Stays hidden unless analytics is configured
+ * and the visitor hasn't chosen yet. Any [data-cookie-settings] link reopens it.
+ */
+import CtaButton from "./CtaButton.astro";
+
+const choices = [
+  { label: "Decline", consent: "denied", variant: "white" },
+  { label: "Accept", consent: "granted", variant: "black" },
+] as const;
+---
+
+<!-- One per language, like the header (see Header.astro). -->
+<cookie-banner transition:persist="cookie-banner-en">
+  <section
+    data-banner
+    aria-label="Cookie consent"
+    hidden
+    class="fixed right-4 bottom-4 z-[65] flex w-[calc(100vw-2rem)] max-w-md flex-col gap-4 rounded-lg border border-neutral-900/15 bg-neutral-100 p-4 text-neutral-900 shadow-lg sm:right-6 sm:bottom-6 sm:gap-6 sm:p-6"
+  >
+    <p class="font-author text-sm leading-snug font-medium sm:text-base">
+      We use cookies to understand how people use this site and its tools, so we can make them better.
+      <a href="/cookies/" class="underline underline-offset-4">Cookie policy</a>
+    </p>
+    <!-- Equal-width buttons on phones; same size and weight on every screen. -->
+    <div class="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+      {
+        choices.map(({ label, consent, variant }) => (
+          <CtaButton label={label} variant={variant} data-consent={consent} style="width: 100%; justify-content: center" />
+        ))
+      }
+    </div>
+  </section>
+</cookie-banner>
+
+<script>
+  import {
+    getConsentStatus,
+    isAnalyticsEnabled,
+    onConsent,
+    openCookieSettings,
+    setConsent,
+    whenReady,
+  } from "../scripts/lib/analytics";
+
+  class CookieBanner extends HTMLElement {
+    initialized = false;
+
+    connectedCallback() {
+      if (this.initialized) return;
+      this.initialized = true;
+      const banner = this.querySelector<HTMLElement>("[data-banner]");
+      if (!banner || !isAnalyticsEnabled()) return;
+
+      const show = (visible: boolean) => {
+        banner.hidden = !visible;
+      };
+
+      // Consent is only known once PostHog has loaded.
+      whenReady(() => show(getConsentStatus() === "pending"));
+
+      banner.addEventListener("click", (event) => {
+        const button = (event.target as Element).closest<HTMLElement>("[data-consent]");
+        if (!button) return;
+        setConsent(button.dataset.consent === "granted");
+        show(false);
+      });
+
+      onConsent("open", () =>
+        whenReady(() => {
+          show(true);
+          banner.querySelector<HTMLElement>("[data-consent]")?.focus();
+        }),
+      );
+
+      document.addEventListener("click", (event) => {
+        if (!(event.target as Element).closest("[data-cookie-settings]")) return;
+        event.preventDefault();
+        openCookieSettings();
+      });
+    }
+
+    // Persisted across navigations: being moved in the DOM must not re-run setup.
+    connectedMoveCallback() {}
+  }
+
+  customElements.get("cookie-banner") || customElements.define("cookie-banner", CookieBanner);
+</script>
