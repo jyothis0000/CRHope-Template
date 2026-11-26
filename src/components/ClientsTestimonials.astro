@@ -4,14 +4,22 @@ import DarkReveal from "./DarkReveal.astro";
 import NoiseDissolve from "./NoiseDissolve.astro";
 import TestimonialCarousel from "./TestimonialCarousel.astro";
 
-// `width` sizes each logo so they read at a similar visual weight.
-const clients = [
-  { name: "Pichichi", logo: "/client-logos/pichichi-logo.svg", width: "85%" },
-  { name: "Smartests", logo: "/client-logos/smartests-logo.svg", width: "75%" },
-  { name: "Aboutwrap", logo: "/client-logos/aboutwrap-logo.svg", width: "70%" },
-  { name: "Jeppesen", logo: "/client-logos/jeppesen-logo.svg", width: "70%" },
-  { name: "Mario Hino", logo: "/client-logos/mariohino-logo.svg", width: "70%" },
-  { name: "Miel España", logo: "/client-logos/mielespaña-logo.svg", width: "80%" },
+// Partner logos are white-background JPGs: the .partner-logo filter turns them into
+// light-on-dark marks. The tile carries the dark background because its reveal
+// animation isolates it, so the screen blend only sees the tile itself.
+const partners = [
+  { name: "FXPesa", logo: "/images/partners/fxpesa.webp" },
+  { name: "Rotary", logo: "/images/partners/rotary.png" },
+  { name: "KARA Foundation", logo: "/images/partners/kara-foundation.jpg" },
+  { name: "Houlihan Lokey", logo: "/images/partners/houlihan-lokey.jpg" },
+  { name: "SLS Dubai Hotel & Residences", logo: "/images/partners/sls-dubai.jpg" },
+  { name: "Puma", logo: "/images/partners/puma.jpg" },
+  { name: "KGS Diamond", logo: "/images/partners/kgs-diamond.jpg" },
+  { name: "Lutron", logo: "/images/partners/lutron.jpg" },
+  { name: "Avgoulea School", logo: "/images/partners/avgoulea-school.jpg" },
+  { name: "Halliday", logo: "/images/partners/halliday.jpg" },
+  { name: "Viability", logo: "/images/partners/viability.jpg" },
+  { name: "Retold", logo: "/images/partners/retold.jpg" },
 ];
 
 // Shared noise-dissolve settings; the effect triggers on hovering the whole tile.
@@ -31,42 +39,42 @@ const dissolve = {
 const testimonials = [
   {
     quote:
-      "Lucas took the time to understand our business and helped us bring all the different parts of aboutwrap together. It feels good to work with someone that has the same attention and obsession to detail as we have. Having one person look after the whole process made things much easier.",
-    name: "Dan Ionut, Aboutwrap",
-    avatar: "/testimonials/dan-aboutwrap.webp",
+      "When I came across the CR Hope Foundation, I absolutely fell in love with their initiative. I hopped on a plane and headed to the school where I got to spend time with these little angels. I am now invested in their future development and I look forward to returning and seeing all the progress they are making.",
+    name: "Dalila, Volunteer",
+    avatar: "/images/testimonials/dalila.jpg",
   },
   {
     quote:
-      "I had a clear vision for the website, and Lucas really respected that. He paid attention to the design and the small details, finding ways to make the animations and video work without compromising the experience.",
-    name: "Mario Hinojal, Mariohino",
-    avatar: "/testimonials/mario-hinojal.webp",
+      "The kids at the Seeds of Light School are the happiest little souls who deserve the world & more. Thank you so much to the CR Hope Foundation for the opportunity of a lifetime to see just how amazing the work they are doing is. Their infectious smiles will stay with me forever.",
+    name: "Brooke, Volunteer",
+    avatar: "/images/testimonials/brooke.jpg",
   },
   {
     quote:
-      "Lucas worked closely with us for two years, handling a wide range of technical work across our ecommerce sites. He became a real part of the team, someone we could talk ideas through with and rely on to find practical solutions.",
-    name: "Kike Rubio, Positiva Brands",
-    avatar: "/testimonials/kike-rubio.webp",
+      "Nowadays, it’s really hard to find people who are generous and kind. When we met those crazy-and-full-of-joy Greeks with even bigger dreams, it was such a relief: you can get back your faith in people. I hope that they will manage to build a school in Zanzibar as this island deserves it.",
+    name: "Karolina Kaczmarczyk, Volunteer",
+    avatar: "/images/testimonials/karolina.jpg",
   },
 ];
 ---
 
-<DarkReveal pin={0.15} narrow aria-label="Clients and testimonials">
+<DarkReveal pin={0.15} narrow aria-label="Partners and testimonials">
   <div class="grid grid-cols-12 gap-gutter mx-auto max-w-none w-full">
     <div
       data-testimonials-and-clients
       class="col-span-12 grid grid-cols-1 gap-x-gutter gap-y-14 lg:col-span-10 lg:col-start-2 lg:grid-cols-10"
     >
-      <!-- First: clients heading, then individual client logos. -->
+      <!-- First: partners heading, then individual partner logos. -->
       <div class="min-w-0 lg:col-span-6">
         <h2 data-dark-item="text" class="overflow-hidden type-clash-semibold-32 mb-6">
-          <span data-reveal-inner class="block">Clients we’ve helped</span>
+          <span data-reveal-inner class="block">Our partners &amp; donors</span>
         </h2>
         <ul data-dark-item="stagger" class="grid grid-cols-2 gap-gutter sm:grid-cols-3">
           {
-            clients.map(({ name, logo, width }) => (
-              <li data-dark-child class="flex aspect-[7/4] items-center justify-center rounded-lg border border-neutral-700 px-gutter">
-                <NoiseDissolve style={`width: ${width}`} {...dissolve}>
-                  <img src={logo} alt={name} loading="lazy" decoding="async" class="h-auto max-h-16 w-full object-contain" />
+            partners.map(({ name, logo }) => (
+              <li data-dark-child class="flex aspect-[7/4] items-center justify-center rounded-lg border border-neutral-700 bg-neutral-900 px-gutter">
+                <NoiseDissolve class="partner-logo w-full" {...dissolve}>
+                  <img src={logo} alt={name} loading="lazy" decoding="async" class="h-auto max-h-20 w-full object-contain" />
                 </NoiseDissolve>
               </li>
             ))
@@ -76,7 +84,7 @@ const testimonials = [
       <!-- Testimonials heading, followed by the carousel. -->
       <div class="min-w-0 lg:col-span-3 lg:col-start-8">
         <h2 data-dark-item="text" class="overflow-hidden type-clash-semibold-32 mb-4 3xl:mb-14">
-          <span data-reveal-inner class="block">Testimonials</span>
+          <span data-reveal-inner class="block">What people say</span>
         </h2>
         <div data-dark-item>
           <TestimonialCarousel testimonials={testimonials} autoplay />
@@ -85,3 +93,10 @@ const testimonials = [
     </div>
   </div>
 </DarkReveal>
+
+<style>
+  .partner-logo {
+    filter: grayscale(1) invert(1);
+    mix-blend-mode: screen;
+  }
+</style>

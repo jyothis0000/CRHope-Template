@@ -9,21 +9,21 @@ type Props = HTMLAttributes<"article">;
 const { class: className, ...rest } = Astro.props;
 
 const facts = [
-  { term: "Based in", detail: "Madrid, Spain" },
-  { term: "Speaks", detail: "Danish, Spanish, English" },
+  { term: "Founded", detail: "CR HOPE, 2017" },
+  { term: "School", detail: "Kizimkazi, Zanzibar" },
 ];
 ---
 
 <article class:list={["@container overflow-hidden rounded-lg bg-neutral-900/5 text-neutral-900", className]} {...rest}>
   <div class="presentation-card__inner flex size-full flex-col justify-between max-md:gap-8">
     <header class="flex flex-col gap-2 @sm:gap-3">
-      <h3 class="presentation-card__name type-author-semibold-32">Lucas B. Jeppesen</h3>
-      <p class="presentation-card__role hidden type-author-medium-18 @[9rem]:block">Founder · Designer &amp; developer</p>
+      <h3 class="presentation-card__name type-author-semibold-32">Renos Fountoulakis</h3>
+      <p class="presentation-card__role hidden type-author-medium-18 @[9rem]:block">Founder · Philanthropist &amp; education enthusiast</p>
     </header>
     <div class="flex flex-col gap-6">
       <p class="hidden type-author-medium-18 @[18rem]:block">
-        Half-Danish, half-Spanish designer and developer based in Madrid. I take every project from brand strategy to the last
-        line of code, so nothing gets lost between design and build.
+        Moved by the children of Kizimkazi on his first visit to Zanzibar, Renos founded CR HOPE with local philanthropist
+        Cosiano Ismail Mbise, who donated the land on which the Seeds of Light school was built.
       </p>
       <dl class="hidden gap-gutter border-t border-neutral-900/15 pt-4 @sm:grid @sm:grid-cols-2">
         {

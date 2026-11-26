@@ -1,12 +1,17 @@
 ---
+import { site } from "../data/site";
+
 const socialLinks = [
-  { label: "LinkedIn", href: "https://www.linkedin.com/in/lucas-b-jeppesen-147a18304/", cta: "footer_linkedin", external: true },
-  { label: "Tools", href: "/tools/", cta: "footer_tools", external: false },
+  { label: "Instagram", href: site.social.instagram, cta: "footer_instagram" },
+  { label: "Facebook", href: site.social.facebook, cta: "footer_facebook" },
+  { label: "LinkedIn", href: site.social.linkedin, cta: "footer_linkedin" },
+  { label: "YouTube", href: site.social.youtube, cta: "footer_youtube" },
+  { label: "TikTok", href: site.social.tiktok, cta: "footer_tiktok" },
 ];
 
 const quietLinks = [
-  { label: "Website examples directory", href: "/tools/website-examples/", cta: "footer_examples_directory" },
-  { label: "Cookie policy", href: "/cookies/", cta: undefined },
+  { label: "Privacy policy", href: site.privacyUrl, cta: undefined },
+  { label: `License No. ${site.license}`, href: undefined, cta: undefined },
 ];
 ---
 
@@ -16,14 +21,14 @@ const quietLinks = [
       <section aria-label="Social media links" class="type-clash-semibold-18 text-neutral-100">
         <ul class="flex flex-col gap-2 sm:flex-row sm:gap-16 max-sm:gap-0">
           {
-            socialLinks.map(({ label, href, cta, external }) => (
+            socialLinks.map(({ label, href, cta }) => (
               <li>
                 <a
                   href={href}
                   data-cta={cta}
                   class="max-sm:inline-block max-sm:py-1.5"
-                  target={external ? "_blank" : undefined}
-                  rel={external ? "noopener noreferrer" : undefined}>{label}</a
+                  target="_blank"
+                  rel="noopener noreferrer">{label}</a
                 >
               </li>
             ))
@@ -47,43 +52,45 @@ const quietLinks = [
         class="flex w-full flex-row items-end justify-between px-site-margin py-2 text-neutral-100 max-sm:flex-col max-sm:items-end max-sm:gap-3"
       >
         <div class="flex flex-col gap-4 sm:pb-[0.8vw] max-sm:items-end">
-          <!--
-            Deliberately quiet: a crawlable path to the third-party website
-            examples gallery from every page, without promoting it to visitors.
-            Keep it visible (no display:none or sr-only), just small and muted.
-
-            Phones: right-aligned with the email, cookie policy on top.
-          -->
+          <!-- Small print. Phones: right-aligned with the email. -->
           <ul
             class="flex flex-row flex-wrap items-center gap-x-6 gap-y-1 font-author text-xs text-neutral-100/60 max-sm:flex-col-reverse max-sm:items-end max-sm:gap-y-2 max-sm:text-right"
           >
             {
               quietLinks.map(({ label, href, cta }) => (
                 <li>
-                  <a
-                    href={href}
-                    data-cta={cta}
-                    class="underline-offset-4 transition-colors hover:text-neutral-100 hover:underline">{label}</a
-                  >
+                  {
+                    href ? (
+                      <a
+                        href={href}
+                        data-cta={cta}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="underline-offset-4 transition-colors hover:text-neutral-100 hover:underline">{label}</a
+                      >
+                    ) : (
+                      label
+                    )
+                  }
                 </li>
               ))
             }
           </ul>
           <p class="hidden font-author leading-[1.35rem] sm:block">
-            Thank you for exploring my work. If you have any questions,<br />ideas, or projects in mind, don’t hesitate to get
-            in touch. I’d love to bring your vision to life.
+            Thank you for supporting quality education in Zanzibar.<br />Questions, ideas, or want to help? Write to us,
+            we’d love to hear from you.
           </p>
         </div>
         <p
-          class="whitespace-nowrap text-right font-clash text-[3.8vw] leading-[4.6vw] font-medium max-sm:self-end max-sm:text-[6.5vw] max-sm:leading-[1.2]"
+          class="whitespace-nowrap text-right font-clash text-[3.8vw] leading-[4.6vw] font-medium max-sm:self-end max-sm:text-[5.4vw] max-sm:leading-[1.2]"
         >
-          lucas@jeppesen.dev
+          <a href={`mailto:${site.email}`} data-cta="footer_email">{site.email}</a>
         </p>
       </div>
-      <div class="relative aspect-[745/100] w-full place-self-end">
+      <div class="relative aspect-[6369/1000] w-full place-self-end">
         <img
-          src="/logo-files/jeppesen-logo-nospace-inverted.svg"
-          alt="Jeppesen logo"
+          src="/brand/wordmark-light.svg"
+          alt="CR HOPE Foundation"
           class="absolute inset-0 h-full w-full object-cover"
           loading="lazy"
         />

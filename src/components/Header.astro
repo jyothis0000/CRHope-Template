@@ -5,20 +5,21 @@
  * navigation and slides off to reveal the new one.
  */
 import CtaButton from "./CtaButton.astro";
-import LanguageSwitcher from "./LanguageSwitcher.astro";
+import { site } from "../data/site";
 
-const email = "lucas@jeppesen.dev";
-const bookingUrl = "https://cal.com/lucasbjeppesen/30min-english?lang=en";
-
+// Sections of the home page (ids set on each section).
 const navLinks = [
-  { label: "Home", href: "/" },
-  { label: "Work", href: "/work/" },
-  { label: "About", href: "/about/" },
+  { label: "Our mission", href: "/#mission" },
+  { label: "Our values", href: "/#values" },
+  { label: "Latest news", href: "/#news" },
+  { label: "Our founder", href: "/#founder" },
+  { label: "FAQ", href: "/#faq" },
+  { label: "Get involved", href: "/#get-involved" },
 ];
 
 const metaLinks = [
-  { label: "LinkedIn", href: "https://www.linkedin.com/in/lucas-b-jeppesen-147a18304/", cta: "menu_linkedin" },
-  { label: "Book a call", href: bookingUrl, cta: "menu_book_call" },
+  { label: "Instagram", href: site.social.instagram, cta: "menu_instagram" },
+  { label: "Volunteer", href: site.volunteerUrl, cta: "menu_volunteer" },
 ];
 
 // Same rule as the script: ignore trailing slashes.
@@ -29,10 +30,8 @@ const currentPath = normalizePath(Astro.url.pathname);
 <!--
   Persisted across ClientRouter navigations: the panel stays on screen
   while the page underneath is swapped, then reveals the new page.
-  One per language: switching language is a full page load, and the key
-  keeps a header from one language from ever being kept on another.
 -->
-<site-header transition:persist="site-header-en">
+<site-header transition:persist="site-header">
   <header>
     <!--
       The logo lives on its own fixed layer so it can keep the
@@ -47,11 +46,11 @@ const currentPath = normalizePath(Astro.url.pathname);
       class="site-logo fixed top-0 left-0 z-60 block px-site-margin pt-site-margin mix-blend-difference"
     >
       <img
-        src="/logo-files/asterisco-icono-invertido.svg"
-        alt="Jeppesen asterisk"
-        width="35"
+        src="/brand/owl-light.svg"
+        alt="CR HOPE Foundation owl"
+        width="24"
         height="40"
-        class="site-logo-mark mt-1 h-8 w-7 sm:mt-0 sm:h-10 sm:w-8.75"
+        class="site-logo-mark mt-1 h-8 w-auto sm:mt-0 sm:h-10"
       />
     </a>
     <div
@@ -59,11 +58,11 @@ const currentPath = normalizePath(Astro.url.pathname);
       class="menu-actions fixed top-0 right-0 z-60 flex h-10 items-center gap-2 pr-site-margin box-content pt-site-margin"
     >
       <CtaButton
-        label="Talk to Lucas"
-        href={bookingUrl}
+        label="Donate"
+        href={site.donateUrl}
         variant="black"
         icon
-        data-cta="header_contact"
+        data-cta="header_donate"
         target="_blank"
         rel="noopener noreferrer"
       />
@@ -110,7 +109,7 @@ const currentPath = normalizePath(Astro.url.pathname);
         class="flex flex-col gap-6 font-author text-fluid-16 sm:flex-row sm:items-end sm:justify-between"
       >
         <div class="flex flex-col gap-1">
-          <a href={`mailto:${email}`} class="menu-meta-link" data-cta="menu_email">{email}</a>
+          <a href={`mailto:${site.email}`} class="menu-meta-link" data-cta="menu_email">{site.email}</a>
         </div>
         <ul class="menu-meta-links flex gap-6">
           {
@@ -122,16 +121,6 @@ const currentPath = normalizePath(Astro.url.pathname);
           }
         </ul>
       </div>
-      <!--
-        Top right corner of the menu, in line with the header buttons
-        the panel pushes to its left. On phones those buttons sit on
-        top of the panel, so it drops to the bottom right corner.
-        Kept out of the footer: the footer's entrance leaves a transform
-        on it, which would anchor this to the footer instead.
-      -->
-      <div data-menu-language class="menu-language">
-        <LanguageSwitcher />
-      </div>
     </div>
   </div>
 </site-header>
@@ -140,6 +129,7 @@ const currentPath = normalizePath(Astro.url.pathname);
   import { gsap } from "gsap";
   import { ScrollSmoother } from "gsap/ScrollSmoother";
   import type { TransitionBeforePreparationEvent } from "astro:transitions/client";
+  import { findHashTarget, scrollToTarget } from "../scripts/lib/scrollToHash";
 
   // How far the page drifts with the panel (fraction of the panel's travel).
   const OPEN_PARALLAX = 0.18;
@@ -373,7 +363,7 @@ const currentPath = normalizePath(Astro.url.pathname);
       const markCurrentLink = () => {
         const current = normalizePath(location.pathname);
         for (const link of links) {
-          if (normalizePath(link.pathname) === current) link.setAttribute("aria-current", "page");
+          if (!link.hash && normalizePath(link.pathname) === current) link.setAttribute("aria-current", "page");
           else link.removeAttribute("aria-current");
         }
       };
@@ -443,20 +433,22 @@ const currentPath = normalizePath(Astro.url.pathname);
         { signal },
       );
 
-      // A link to the page you're already on just closes the menu.
+      // A link to the page you're already on just closes the menu;
+      // a #section link on it closes the menu, then scrolls there.
       panel.addEventListener(
         "click",
-        (event) => {
+        async (event) => {
           const link = (event.target as Element).closest("a");
           if (
             link &&
             !link.target &&
             link.origin === location.origin &&
-            normalizePath(link.pathname) === normalizePath(location.pathname) &&
-            !link.hash
+            normalizePath(link.pathname) === normalizePath(location.pathname)
           ) {
             event.preventDefault();
-            closeMenu();
+            const target = findHashTarget(link.hash);
+            await closeMenu();
+            if (target) scrollToTarget(target, true);
           }
         },
         { signal },
@@ -526,20 +518,6 @@ const currentPath = normalizePath(Astro.url.pathname);
     overscroll-behavior: contain;
     position: relative;
     overflow-y: auto;
-  }
-  .menu-language {
-    right: var(--spacing-site-margin);
-    bottom: var(--spacing-site-margin);
-    position: absolute;
-  }
-  @media (width>=40rem) {
-    .menu-language {
-      top: var(--spacing-site-margin);
-      align-items: center;
-      height: 2.5rem;
-      display: flex;
-      bottom: auto;
-    }
   }
   .menu-scrim {
     -webkit-backdrop-filter: blur(6px);

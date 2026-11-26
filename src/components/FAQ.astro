@@ -2,57 +2,48 @@
 // FAQ accordion in a dark section, plus matching FAQPage structured data.
 // Answers are trusted HTML (they may contain links).
 import DarkReveal from "./DarkReveal.astro";
+import { site } from "../data/site";
 
 const faqs = [
   {
-    question: "Am I a good fit for Jeppesen?",
-    answer:
-      "If your work is better than your brand and website make it look, yes. We work best with detail-driven businesses that sell on quality: studios, makers, specialist brands and premium services.",
+    question: "What is CR HOPE Foundation?",
+    answer: `CR HOPE (Cosiano Renos HOPE) is a not-for-profit charity launched in 2017 with one objective: providing quality education to children and youth in Zanzibar, Tanzania, and so fighting poverty in the region. License No. ${site.license}.`,
   },
   {
-    question: "How much does a brand and website project cost?",
-    answer:
-      'Our complete brand and website package starts at €8,000. Extras like ecommerce, social media templates or a custom dashboard are quoted per project, since every business needs something different. For a rough budget before we talk, try our <a href="/tools/branding-and-website-pricing-calculator/" class="underline underline-offset-4 !text-neutral-100">branding &amp; website budget calculator</a>.',
+    question: "Where is the Seeds of Light school?",
+    answer: `In the village of Kizimkazi, Mkunguni, in Zanzibar. It opened in January 2020 on land donated by our co-founder, Cosiano Ismail Mbise, so local children could learn for free.`,
   },
   {
-    question: "Is it worth the investment?",
-    answer:
-      "A brand and website should bring in better clients, not just look good. Past projects have reached a 19% visitor-to-enquiry rate for Aboutwrap and supported 45.8% year-over-year revenue growth for The Pichichi Company. Every business is different, but that's the standard we work to.",
+    question: "How many children do you support?",
+    answer: `Seeds of Light currently serves 180 students aged 3 to 13 and employs 13 local teachers. Children build literacy and numeracy skills, and we spur their interest in sports, community development and leadership.`,
   },
   {
-    question: "Isn't one person riskier than hiring an agency?",
-    answer:
-      "Usually it's the opposite. You work directly with the person designing and building your project, so nothing gets lost between account managers and departments. We take on one project at a time, and bring in trusted specialists for things like illustration or imagery when a project needs it.",
+    question: "Why focus on education?",
+    answer: `Africa has the highest rate of non-educated individuals, and with the high levels of poverty in Tanzania most parents can’t afford to send their children to school, even at primary level. Quality education is the most lasting way we know to change that.`,
   },
   {
-    question: "How long does a project take?",
-    answer:
-      "Usually 8 to 12 weeks from kickoff to launch. Most of the variation comes from how quickly feedback and approvals come back.",
+    question: "How can I donate?",
+    answer: `Give through our <a href="${site.donateUrl}" target="_blank" rel="noopener noreferrer" class="underline underline-offset-4 !text-neutral-100">GlobalGiving page</a> or via <a href="${site.paypalUrl}" target="_blank" rel="noopener noreferrer" class="underline underline-offset-4 !text-neutral-100">PayPal</a>. A donation of even $1 makes a difference and helps build a better future for the children of Zanzibar.`,
   },
   {
-    question: "How much of my time will it take?",
-    answer:
-      "Not much. You'll join a kickoff session, give feedback at a few key moments, and approve the design before we build it. We write the copy and prepare the images, so you don't need content ready.",
+    question: "Can I volunteer at the school?",
+    answer: `Yes. Volunteers help with arts and crafts, sports, music, hygiene lessons, playground supervision and community projects like tree planting. You don’t need specialised experience or certifications, just passion and dedication. <a href="${site.volunteerUrl}" target="_blank" rel="noopener noreferrer" class="underline underline-offset-4 !text-neutral-100">Apply to volunteer</a>.`,
   },
   {
-    question: "What if I don't like the result?",
-    answer:
-      "We keep refining until you're genuinely happy. There's no fixed number of revision rounds within the agreed scope. The goal is the best possible result, not ticking off rounds.",
+    question: "What does a volunteer’s week look like?",
+    answer: `Volunteers teach five days a week, with weekends and holidays free. A member of staff meets you at Abeid Amani Karume International Airport in Zanzibar, orientation happens the next day, and the volunteer guest house is your base during your stay.`,
   },
   {
-    question: "My brand is already strong. Can you just do the website?",
-    answer:
-      "Yes. If your identity is solid and up to date, we can focus on what's missing: web design and development, development from an existing design, or motion to bring your brand to life.",
+    question: "Is there a fee to volunteer?",
+    answer: `There is a program fee that depends on the length of your stay, plus an $80 application and placement booking fee. It covers administration, placement booking and confirmation, pre-departure support and 24-hour international HQ back-up. Questions? Email <a href="mailto:${site.email}" target="_blank" rel="noopener noreferrer" class="underline underline-offset-4 !text-neutral-100">${site.email}</a>.`,
   },
   {
-    question: "Can I update the website myself?",
-    answer:
-      "Yes. Every site comes with a custom Sanity CMS, so you can edit text, images and projects without touching code. We show you how at handover.",
+    question: "How can my company partner with CR HOPE?",
+    answer: `Companies can partner with us as part of their Corporate Social Responsibility initiatives. We stay transparent and track our projects continuously, so partners always know the impact of their support. <a href="${site.partnerUrl}" target="_blank" rel="noopener noreferrer" class="underline underline-offset-4 !text-neutral-100">Become a partner</a>.`,
   },
   {
-    question: "How do we get started?",
-    answer:
-      "Book a 30-minute call. We'll talk about your business and whether we're the right fit. We take on one project at a time and book projects in order, so it's worth reaching out early.",
+    question: "Are you aligned with the UN Sustainable Development Goals?",
+    answer: `Yes. CR HOPE aligns its activities with the UN Sustainable Development Goals and has pledged to help end poverty, expand access to education, reduce gender inequality and support global sustainability.`,
   },
 ];
 
@@ -69,23 +60,20 @@ const faqSchema = {
 const faqJsonLd = JSON.stringify(faqSchema).replace(/</g, "\\u003c");
 ---
 
-<DarkReveal aria-label="Frequently asked questions">
+<DarkReveal id="faq" aria-label="Frequently asked questions">
   <div class="grid grid-cols-12 gap-gutter mx-auto max-w-none w-full">
     <div class="col-span-12 grid grid-cols-1 gap-x-gutter gap-y-10 lg:col-span-10 lg:col-start-2 lg:grid-cols-10">
       <!--
-        Visual (cols 2–5 in the design). The photo is IMG_6677 with its
-        colour grade baked in (tuned in /lab/faq-images, see FINAL_GRADE
-        there). Pass another visual in the "visual" slot to replace it.
-        Hidden below lg, so the lazy image is never downloaded on mobile.
+        Visual (cols 2–5 in the design). Pass another visual in the "visual"
+        slot to replace it. Hidden below lg, so the lazy image is never
+        downloaded on mobile.
       -->
       <div data-dark-item aria-hidden="true" class="hidden aspect-[3/4] overflow-hidden rounded-lg bg-neutral-900 lg:col-span-4 lg:block">
         <slot name="visual">
           <img
-            src="/faq/faq-desk.webp"
-            srcset="/faq/faq-desk-1000.webp 1000w, /faq/faq-desk.webp 1500w"
-            sizes="30vw"
-            width="1500"
-            height="2000"
+            src="/images/faq-classroom.jpg"
+            width="900"
+            height="578"
             alt=""
             loading="lazy"
             decoding="async"

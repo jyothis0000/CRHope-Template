@@ -14,19 +14,12 @@ interface Props {
 }
 
 const {
-  title = "Jeppesen — Branding, Web Design & Development",
-  description = "At Jeppesen we build brands and websites that help you be understood and trusted as your business and brand deserve",
+  title = "CR HOPE Foundation — Quality education for children in Zanzibar",
+  description = "CR HOPE Foundation is a not-for-profit charity giving children in Kizimkazi, Zanzibar, access to quality education at our Seeds of Light school.",
 } = Astro.props;
 
 const canonical = new URL(Astro.url.pathname, Astro.site);
-const ogImage = new URL("/og/jeppesen-share.png", Astro.site);
-
-// Where each language version of this page lives. The language switcher reads this.
-const languageLinks = {
-  en: { href: "/", samePage: true },
-  da: { href: "/da/", samePage: true },
-  es: { href: "/es/", samePage: true },
-};
+const ogImage = new URL("/og/crhope-share.jpg", Astro.site);
 ---
 
 <!doctype html>
@@ -46,28 +39,28 @@ const languageLinks = {
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
     <!-- Icons: .ico for legacy browsers, SVG for sharp tabs, PNGs for home screens. -->
-    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/favicon.png" sizes="100x100" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="theme-color" content="#f2ede4" />
     <!-- Link previews (Open Graph + X/Twitter). -->
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Jeppesen" />
+    <meta property="og:site_name" content="CR HOPE Foundation" />
     <meta property="og:locale" content="en_US" />
     <meta property="og:url" content={canonical} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:image" content={ogImage} />
-    <meta property="og:image:type" content="image/png" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Jeppesen asterisk isotype" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1000" />
+    <meta property="og:image:height" content="643" />
+    <meta property="og:image:alt" content="Children from the Seeds of Light school playing football in Zanzibar" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImage} />
-    <meta name="twitter:image:alt" content="Jeppesen asterisk isotype" />
+    <meta name="twitter:image:alt" content="Children from the Seeds of Light school playing football in Zanzibar" />
     <slot name="head" />
     <ClientRouter />
   </head>
@@ -81,7 +74,6 @@ const languageLinks = {
         <Footer />
       </div>
     </div>
-    <script is:inline type="application/json" id="language-links" set:html={JSON.stringify(languageLinks)} />
     <Grain />
     <!-- Outside the smooth-scroll wrapper so position: fixed works. -->
     <CookieBanner />
@@ -95,6 +87,7 @@ const languageLinks = {
   import { ScrollTrigger } from "gsap/ScrollTrigger";
   import { ScrollSmoother } from "gsap/ScrollSmoother";
   import { FINE_POINTER_QUERY } from "../scripts/lib/pointer";
+  import { findHashTarget, scrollToTarget } from "../scripts/lib/scrollToHash";
 
   gsap.registerPlugin(ScrollTrigger, ScrollSmoother);
   ScrollTrigger.config({ ignoreMobileResize: true });
@@ -150,33 +143,13 @@ const languageLinks = {
     });
   }
 
-  function findHashTarget(hash: string) {
-    if (hash.length < 2) return null;
-    try {
-      return document.getElementById(decodeURIComponent(hash.slice(1)));
-    } catch {
-      return null;
-    }
-  }
-
-  function scrollToTarget(target: HTMLElement, smooth: boolean) {
-    const margin = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
-    const smoother = ScrollSmoother.get();
-    if (smoother) {
-      const contentY = Number(gsap.getProperty(smoother.content(), "y")) || 0;
-      const top = target.getBoundingClientRect().top - contentY;
-      smoother.scrollTo(Math.max(0, top - margin), smooth);
-    } else {
-      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      target.scrollIntoView({ behavior: smooth && !reduced ? "smooth" : "auto", block: "start" });
-    }
-  }
-
   function onHashLinkClick(event: MouseEvent) {
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
       return;
     const link = (event.target as Element | null)?.closest?.<HTMLAnchorElement>("a[href*='#']");
     if (!link || link.target === "_blank" || link.hasAttribute("download")) return;
+    // Menu links close the menu first; the header scrolls once it has.
+    if (link.closest("[data-menu-panel]")) return;
     const url = new URL(link.href, window.location.href);
     if (
       url.origin !== window.location.origin ||

@@ -1,5 +1,5 @@
 ---
-// Services list with a preview image per service. Desktop: hovering (or focusing)
+// Values list with a preview image per value. Desktop: hovering (or focusing)
 // a row swaps the image through a noise filter. Phones: see the comment below.
 interface Service {
   title: string;
@@ -9,13 +9,14 @@ interface Service {
   poster?: string;
 }
 
+// CR HOPE’s core values, each paired with a photo from the Seeds of Light school.
 const services: Service[] = [
-  { title: "Brand Strategy", src: "/services/services-brand-strategy.webp", alt: "Brand strategy project" },
-  { title: "Visual Identity", src: "/services/services-2.webp", alt: "Visual identity project" },
-  { title: "Motion", src: "/services/services-motion.mp4", poster: "/services/services-motion-poster.webp", alt: "Motion design project" },
-  { title: "Web Strategy", src: "/services/services-4.webp", alt: "Web strategy project" },
-  { title: "Web Design", src: "/services/services-5.webp", alt: "Web design project" },
-  { title: "Web Development", src: "/services/services-6.webp", alt: "Web development project" },
+  { title: "Sharing", src: "/images/values/sharing.jpg", alt: "Children of the Seeds of Light school gathered together" },
+  { title: "Caring", src: "/images/values/caring.jpg", alt: "A volunteer hugging a child at the school" },
+  { title: "Loving", src: "/images/values/loving.jpg", alt: "Two smiling schoolgirls in Kizimkazi" },
+  { title: "Truthful", src: "/images/values/truthful.jpg", alt: "A teacher leading a lesson in a classroom" },
+  { title: "Faithful", src: "/images/values/faithful.jpg", alt: "A boy concentrating on his schoolwork" },
+  { title: "Team Work", src: "/images/values/teamwork.jpg", alt: "Children playing football together" },
 ];
 
 // Desktop images line up with their row: the first at the top, the last at the bottom.
@@ -24,8 +25,8 @@ const mobileMediaClass = "pointer-events-none absolute inset-0 size-full select-
 const desktopMediaClass = "pointer-events-none absolute left-0 select-none h-auto w-full rounded-lg";
 ---
 
-<section class="px-site-margin pt-section-high" data-services>
-  <h2 class="services__title type-clash-semibold-32 mb-8 text-neutral-900">Services</h2>
+<section id="values" class="px-site-margin pt-section-high" data-services>
+  <h2 class="services__title type-clash-semibold-32 mb-8 text-neutral-900">Our values</h2>
   <!--
     Phones: no cursor to hover with, so the scroll does it. The image
     sticks under the header while the list scrolls beneath it; the row

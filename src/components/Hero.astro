@@ -1,0 +1,200 @@
+---
+// Home hero: the CR HOPE wordmark assembles from its pieces (the owl sweeps
+// across while "HOPE" wipes in), then the title, intro copy and photo fade in.
+// The photo grows into the grid on scroll.
+//
+// The wordmark is 6.369 times as wide as it is tall (see public/brand/*.svg);
+// that ratio appears below and in the <style> as 50vw / 6.369 and 100vw / 6.369.
+---
+
+<div class="relative -mt-40 min-h-svh pt-40">
+  <div class="grid grid-cols-12 gap-gutter mx-auto max-w-none pointer-events-none absolute inset-x-0 top-0 px-site-margin">
+    <div id="intro-video-grid-target" class="col-start-2 col-end-12 h-px" aria-hidden="true"></div>
+  </div>
+  <div
+    id="wordmark"
+    role="img"
+    aria-label="CR HOPE"
+    class="absolute w-1/2 left-1/4"
+    style="top: calc(50vh - 50vw / 6.369); height: calc(50vw / 6.369); transform-origin: bottom"
+  >
+    <img id="wm-c" src="/brand/wordmark-c.svg" alt="" class="absolute top-0 w-[15.665%] opacity-0" style="transform: translateY(35vh)" />
+    <div
+      id="wm-r"
+      class="absolute h-full w-[11.403%] left-[17.851%]"
+      style="top: -70vh; transform: rotate(-90deg); transform-origin: bottom left"
+    >
+      <img src="/brand/wordmark-r.svg" alt="" class="h-full w-full" />
+      <img id="wm-owl" src="/brand/owl.svg" alt="" class="absolute top-0 h-full w-[81.1%] left-[123.96%]" />
+    </div>
+    <img
+      id="wm-hope"
+      src="/brand/wordmark-hope.svg"
+      alt=""
+      class="absolute top-0 w-[56.025%] left-[43.971%]"
+      style="clip-path: polygon(100% 0%, 100% 0%, 100% 100%, 100% 100%)"
+    />
+  </div>
+  <section
+    class="px-site-margin pt-8 md:pt-[2vh] pb-[15vw] sm:pb-[2.7vw] sm:pr-[2.7vw] flex flex-col z-20"
+    style="min-height: calc(100vh - 100vw / 6.369 - 140px)"
+  >
+    <h1 id="big-title" class="w-full sm:w-4/5 pb-[2.5svh] opacity-0">
+      <span class="block type-clash-semibold-xl">Building the future of children in Zanzibar.</span><span
+        class="block type-clash-regular-xl">One educated child at a time.</span
+      >
+    </h1>
+    <div id="rest-page" class="flex flex-row justify-between grow opacity-0">
+      <p class="w-4/12 type-author-medium-18 hidden sm:block max-w-160">
+        CR HOPE is a not-for-profit foundation giving children in underserved communities access to quality education. At our
+        Seeds of Light school in Kizimkazi, 180 children aged 3 to 13 learn with 13 local teachers.
+      </p>
+      <div id="intro-video" class="intro-video absolute right-[2.7vw] w-[94.6vw] sm:w-[22%] h-auto border-8 border-background rounded-lg">
+        <img
+          src="/images/hero-girl.webp"
+          alt="A smiling girl at the Seeds of Light school in Kizimkazi"
+          width="2560"
+          height="1787"
+          class="block aspect-video w-full h-auto rounded-lg object-cover"
+        />
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+  import { gsap } from "gsap";
+  import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  const FULL_CLIP = "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)";
+  const FINAL_LOGO_TOP = "calc(100svh - 50vw / 6.369)";
+
+  let context: gsap.Context | undefined;
+  let media: gsap.MatchMedia | undefined;
+  let videoObserver: IntersectionObserver | undefined;
+
+  // Pause the intro video while it is off screen; resume it only if we paused it.
+  function watchIntroVideo() {
+    const video = document.querySelector<HTMLVideoElement>("#intro-video video");
+    if (!video || !("IntersectionObserver" in window)) return;
+    let visible = true;
+    let pausedOffscreen = false;
+
+    videoObserver = new IntersectionObserver(
+      ([entry]) => {
+        visible = entry.isIntersecting;
+        if (visible) {
+          if (pausedOffscreen) {
+            pausedOffscreen = false;
+            video.play().catch(() => {});
+          }
+        } else if (!video.paused) {
+          pausedOffscreen = true;
+          video.pause();
+        }
+      },
+      { rootMargin: "200px 0px" },
+    );
+    videoObserver.observe(video);
+
+    // Autoplay may kick in after the hero has already scrolled away.
+    video.addEventListener(
+      "play",
+      () => {
+        if (!visible) {
+          pausedOffscreen = true;
+          video.pause();
+        }
+      },
+      { once: true },
+    );
+  }
+
+  // Jump straight to the end of the intro animation.
+  function showFinalState() {
+    gsap.set("#wm-r", { y: "70vh", rotate: 0 });
+    gsap.set("#wm-c", { y: 0, opacity: 1 });
+    gsap.set("#wm-owl", { x: 0 });
+    gsap.set("#wm-hope", { clipPath: FULL_CLIP });
+    gsap.set("#wordmark", { scale: 2, top: FINAL_LOGO_TOP });
+    gsap.set("#big-title", { opacity: 1 });
+    gsap.set("#rest-page", { opacity: 1 });
+  }
+
+  function teardown() {
+    videoObserver?.disconnect();
+    videoObserver = undefined;
+    media?.revert();
+    media = undefined;
+    context?.revert();
+    context = undefined;
+  }
+
+  function init() {
+    teardown();
+    if (!document.getElementById("wordmark")) return;
+    watchIntroVideo();
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const win = window as Window & { __heroPlayed?: boolean };
+
+    context = gsap.context(() => {
+      // The intro plays once per visit; later client-side navigations show the end state.
+      if (reducedMotion || win.__heroPlayed) {
+        showFinalState();
+        return;
+      }
+      const timeline = gsap.timeline();
+      timeline.to("#wm-r", { y: "70vh", duration: 0.8, ease: "back.out(1)" });
+      timeline.to("#wm-c", { y: 0, opacity: 1, duration: 0.5, ease: "back.out(0.5)" }, "-=35%");
+      timeline.to("#wm-r", { rotate: 0, duration: 0.4, ease: "back.out(0.5)" }, "-=100%");
+      timeline.to("#wm-owl", { x: "45vw", duration: 1.5, yoyo: true, repeat: 1, ease: "power4.inOut" }, "-=28%");
+      timeline.to("#wm-hope", { clipPath: FULL_CLIP, ease: "power1.in", duration: 0.6 }, "-=170%");
+      timeline.to("#wordmark", { scale: 2, top: FINAL_LOGO_TOP, duration: 0.6, ease: "power2.out" });
+      timeline.to("#big-title", { opacity: 1, duration: 0.4 });
+      timeline.to("#rest-page", { opacity: 1, duration: 0.4 }, "-=75%");
+      win.__heroPlayed = true;
+    });
+
+    if (reducedMotion) return;
+
+    // From 680px the video scrubs down and widens to the grid's inner columns.
+    media = gsap.matchMedia();
+    media.add("(min-width: 680px)", () => {
+      const video = document.querySelector<HTMLElement>("#intro-video");
+      const target = document.querySelector<HTMLElement>("#intro-video-grid-target");
+      const container = video?.offsetParent;
+      if (!video || !target || !(container instanceof HTMLElement)) return;
+
+      gsap.to(video, {
+        width: () => target.getBoundingClientRect().width,
+        right: () => container.getBoundingClientRect().right - target.getBoundingClientRect().right,
+        y: "66vw",
+        scrollTrigger: {
+          trigger: video,
+          start: "top 40%",
+          end: "bottom top",
+          scrub: true,
+          invalidateOnRefresh: true,
+        },
+      });
+    });
+  }
+
+  document.addEventListener("astro:page-load", init);
+  document.addEventListener("astro:before-swap", teardown);
+</script>
+
+<style>
+  .intro-video {
+    bottom: calc(100vw / 6.369 + 20px);
+  }
+  @media (max-width: 39.99rem) {
+    .intro-video {
+      top: calc(100svh - 100vw / 6.369 - 20px);
+      bottom: auto;
+      translate: 0 -100%;
+    }
+  }
+</style>

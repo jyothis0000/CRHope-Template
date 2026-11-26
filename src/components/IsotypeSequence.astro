@@ -1,12 +1,15 @@
 ---
-// Pinned scroll sequence: the 3D asterisk flattens into the flat one, which
-// shrinks into the first column of a row, then the portrait and the bio card
-// rise in beside it. With reduced motion it's just the static stack.
+// Pinned scroll sequence: the 3D owl flattens into the flat one, which
+// shrinks into the first column of a row, then the founder's portrait and bio
+// card rise in beside it. With reduced motion it's just the static stack.
 import EmbossedIsotype from "./EmbossedIsotype.astro";
 import PresentationCard from "./PresentationCard.astro";
+import owlSvg from "../../public/brand/owl.svg?raw";
 
-// Share of the frame the asterisk fills. The script reads it back from --isotype-size.
+// Share of the frame the owl fills. The script reads it back from --isotype-size.
 const isotypeSize = 0.55;
+// The flat owl reuses the paths of the same SVG the 3D relief is built from.
+const owlPaths = owlSvg.replace(/^[\s\S]*?<svg[^>]*>|<\/svg>\s*$/g, "");
 ---
 
 <!--
@@ -14,42 +17,45 @@ const isotypeSize = 0.55;
   starting to draw right under the row the moment the pin releases. It sits
   on the section, outside the pinned stage, so it doesn't change the pin.
 -->
-<section class="isotype-sequence px-site-margin pb-section-high" data-isotype-sequence>
+<section id="founder" aria-label="Our founder" class="isotype-sequence px-site-margin pb-section-high" data-isotype-sequence>
   <div class="isotype-sequence__stage" data-isotype-stage>
-    <!-- Centred start: the 3D asterisk with the flat one stacked on top. -->
+    <!-- Centred start: the 3D owl with the flat one stacked on top. -->
     <div class="isotype-sequence__hero" data-isotype-hero>
       <div class="isotype-sequence__frame relative aspect-square" style={`--isotype-size: ${isotypeSize};`} data-isotype-frame>
         <div class="absolute inset-0" data-isotype-embossed>
           <EmbossedIsotype
-            src="/logo-files/asterisco-icono.svg"
-            label="Jeppesen asterisk"
+            src="/brand/owl.svg"
+            label="CR HOPE owl"
             relief="carved"
             size={isotypeSize}
             shadow={0.3}
             travel={0.5}
           />
         </div>
-        <svg class="isotype-sequence__flat text-neutral-900" viewBox="0 0 100 100" aria-hidden="true" data-isotype-flat>
-          <polygon
-            fill="currentColor"
-            points="100,42.4 68.2,42.4 90.7,20 80,9.3 57.6,31.8 57.6,0 42.4,0 42.4,31.8 20,9.3 9.3,20 31.8,42.4 0,42.4 0,57.6 31.8,57.6 9.3,80 20,90.7 42.4,68.2 42.4,100 57.6,100 57.6,68.2 80,90.7 90.7,80 68.2,57.6 100,57.6"
-          ></polygon>
-        </svg>
+        <svg
+          class="isotype-sequence__flat text-neutral-900"
+          viewBox="0 0 20.056 34.05"
+          fill="currentColor"
+          fill-rule="evenodd"
+          aria-hidden="true"
+          data-isotype-flat
+          set:html={owlPaths}
+        />
       </div>
     </div>
-    <!-- End state: asterisk slot + two blocks, 4 columns each.
+    <!-- End state: owl slot + two blocks, 4 columns each.
          Both blocks are rounded; the stagger's clip-path rounds to match. -->
     <div class="isotype-sequence__row grid grid-cols-12 gap-gutter" data-isotype-row>
-      <!-- Phones: asterisk and tile share the first row (6 + 6) and the
+      <!-- Phones: owl and tile share the first row (6 + 6) and the
            card takes the full width below, as tall as its content, so its
            bio has room to show and the row still fits the pinned screen. -->
       <div class="col-span-4 aspect-square max-md:col-span-6" data-isotype-slot></div>
       <div class="overflow-hidden rounded-lg bg-neutral-900 col-span-4 aspect-square max-md:col-span-6" data-isotype-block="true">
         <img
-          src="/about/lucas-b-jeppesen.webp"
-          srcset="/about/lucas-b-jeppesen-800.webp 800w, /about/lucas-b-jeppesen.webp 1600w"
-          sizes="(max-width: 767px) 50vw, 34vw"
-          alt="Portrait of Lucas B. Jeppesen"
+          src="/images/renos-fountoulakis.jpg"
+          width="923"
+          height="964"
+          alt="Portrait of Renos Fountoulakis, founder of CR HOPE Foundation"
           class="block size-full object-cover"
           loading="lazy"
           decoding="async"
@@ -95,7 +101,7 @@ const isotypeSize = 0.55;
         gsap.set(flat, { opacity: 0, x: 0, y: 0, scale: 1, rotation: 0, transformOrigin: "50% 50%" });
         gsap.set(embossed, { opacity: 1 });
 
-        // The blocks rise in, unclipping upwards. Time-based, triggered when the asterisk locks in.
+        // The blocks rise in, unclipping upwards. Time-based, triggered when the owl locks in.
         const blocksIn = gsap.timeline({ paused: true }).fromTo(
           blocks,
           { clipPath: `inset(100% 0% 0% 0% round ${radius})`, yPercent: 6 },
@@ -108,7 +114,7 @@ const isotypeSize = 0.55;
           },
         );
 
-        // Offset and scale that land the flat asterisk exactly on the slot.
+        // Offset and scale that land the flat owl exactly on the slot.
         function slotTransform() {
           const frameRect = frame!.getBoundingClientRect();
           const slotRect = slot!.getBoundingClientRect();
@@ -153,7 +159,7 @@ const isotypeSize = 0.55;
           .addLabel("locked")
           .to({}, { duration: 0.8 });
 
-        // Blocks play in once the asterisk is locked, and reverse (faster) when scrolling back.
+        // Blocks play in once the owl is locked, and reverse (faster) when scrolling back.
         function syncBlocks() {
           if (sequence.time() >= sequence.labels.locked - 0.001) blocksIn.timeScale(1).play();
           else if (blocksIn.progress() > 0) blocksIn.timeScale(1.8).reverse();

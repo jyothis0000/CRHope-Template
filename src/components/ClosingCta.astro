@@ -1,11 +1,13 @@
 ---
 import CtaButton from "./CtaButton.astro";
 import WriteOnText from "./WriteOnText.astro";
+import { site } from "../data/site";
 ---
 
 <section
-  aria-label="Book a call"
-  data-cta-section="home_closing_cta"
+  id="get-involved"
+  aria-label="Get involved"
+  data-cta-section="home_get_involved"
   data-noise-trail
   data-trail-grain="0.5"
   data-trail-radius="76"
@@ -26,15 +28,15 @@ import WriteOnText from "./WriteOnText.astro";
       class="col-start-2 col-end-12 w-full max-w-350 justify-self-center text-center max-md:col-start-1 max-md:col-end-13"
       start="top 85%"
       end="center 45%"
-      text="Let’s close the gap between how good you are and how good you look."
+      text="Together we can do better. Even $1 helps build a brighter future."
     >
       <CtaButton
-        label="Book a 30-minute call"
-        href="https://cal.com/lucasbjeppesen/30min-english?lang=en"
+        label="Make a donation"
+        href={site.donateUrl}
         variant="black"
         size="lg"
         icon
-        data-cta="home_cta_book_call"
+        data-cta="home_cta_donate"
         target="_blank"
         rel="noopener noreferrer"
       />

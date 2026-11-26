@@ -13,139 +13,25 @@
 import type { PostHog } from "posthog-js";
 
 // ---------------------------------------------------------------------------
-// Page classification: which route (and locale) a path belongs to.
-// Mirrors the original site's routes; edit to match yours.
+// Page classification. One page today; add entries here as pages are added.
 // ---------------------------------------------------------------------------
 
-const LOCALES = ["en", "da", "es", "de", "fr", "pt", "it"] as const;
-type Locale = (typeof LOCALES)[number];
-
-const isLocale = (value: unknown): value is Locale => typeof value === "string" && LOCALES.includes(value as Locale);
-
-function localeFromPath(path: string): Locale {
-  const segment = path.split("/")[1];
-  return isLocale(segment) && segment !== "en" ? segment : "en";
-}
-
-const analyzerPaths = {
-  en: "/tools/service-pricing-analyzer/",
-  da: "/da/vaerktoejer/prisanalyse-af-ydelser/",
-  es: "/es/herramientas/analizador-de-precios-de-servicios/",
-};
-
-const ROUTES: Record<string, Partial<Record<Locale, string>>> = {
-  home: { en: "/", da: "/da/", es: "/es/" },
-  work: { en: "/work/", da: "/da/arbejde/", es: "/es/proyectos/" },
-  about: { en: "/about/", da: "/da/om/", es: "/es/sobre-mi/" },
-  cookies: { en: "/cookies/", da: "/da/cookies/", es: "/es/cookies/" },
-  tools: { en: "/tools/", da: "/da/vaerktoejer/", es: "/es/herramientas/" },
-  calculator: {
-    en: "/tools/branding-and-website-pricing-calculator/",
-    da: "/da/vaerktoejer/prisberegner-branding-og-hjemmeside/",
-    es: "/es/herramientas/calculadora-precio-branding-y-pagina-web/",
-  },
-  analyzer: analyzerPaths,
-  analyzerResult: {
-    en: `${analyzerPaths.en}r/[id]`,
-    da: `${analyzerPaths.da}r/[id]`,
-    es: `${analyzerPaths.es}r/[id]`,
-  },
-  websiteExamples: {
-    en: "/tools/website-examples/",
-    da: "/da/vaerktoejer/eksempler-paa-hjemmesider/",
-    es: "/es/herramientas/ejemplos-de-paginas-web/",
-    de: "/de/website-beispiele/",
-    fr: "/fr/exemples-de-sites-web/",
-    pt: "/pt/exemplos-de-sites/",
-    it: "/it/esempi-di-siti-web/",
-  },
-  websiteExamplesNiche: {
-    en: "/tools/website-examples/[niche]/",
-    da: "/da/vaerktoejer/eksempler-paa-hjemmesider/[niche]/",
-    es: "/es/herramientas/ejemplos-de-paginas-web/[niche]/",
-    de: "/de/website-beispiele/[niche]/",
-    fr: "/fr/exemples-de-sites-web/[niche]/",
-    pt: "/pt/exemplos-de-sites/[niche]/",
-    it: "/it/esempi-di-siti-web/[niche]/",
-  },
-};
-
-type PageKind = { area: string; type: string; tool: string | null };
-
-const PAGE_KINDS: Record<string, PageKind> = {
-  home: { area: "studio", type: "home", tool: null },
-  work: { area: "studio", type: "work", tool: null },
-  about: { area: "studio", type: "about", tool: null },
-  tools: { area: "tools", type: "tools_index", tool: null },
-  calculator: { area: "tools", type: "tool", tool: "budget_calculator" },
-  analyzer: { area: "tools", type: "tool", tool: "pricing_analyzer" },
-  analyzerResult: { area: "tools", type: "tool_result", tool: "pricing_analyzer" },
-  websiteExamples: { area: "tools", type: "tool", tool: "website_examples" },
-  websiteExamplesNiche: { area: "tools", type: "tool_niche", tool: "website_examples" },
-  cookies: { area: "legal", type: "cookies", tool: null },
-};
-
-type PageInfo = PageKind & { niche: string | null; locale: Locale };
+type PageInfo = { area: string; type: string; tool: string | null; niche: string | null; locale: string };
 
 const withTrailingSlash = (path: string) => (path.endsWith("/") ? path : `${path}/`);
 
-// One regex per route and locale; "[param]" segments become capture groups.
-const routeMatchers = Object.keys(ROUTES).flatMap((key) =>
-  LOCALES.flatMap((locale) => {
-    const path = ROUTES[key][locale];
-    if (!path) return [];
-    const names: string[] = [];
-    const pattern = withTrailingSlash(path)
-      .split(/(\[[^\]]+\])/)
-      .map((part) => {
-        const param = part.match(/^\[([^\]]+)\]$/);
-        if (param) {
-          names.push(param[1]);
-          return "([^/]+)";
-        }
-        return part.replace(/[.*+?^${}()|\\]/g, "\\$&");
-      })
-      .join("");
-    return [{ key, locale, regex: new RegExp(`^${pattern}$`), names }];
-  }),
-);
-
-function matchRoute(pathname: string) {
-  let path = pathname || "/";
-  try {
-    path = decodeURI(path);
-  } catch {}
-  path = withTrailingSlash(path);
-  for (const matcher of routeMatchers) {
-    const match = matcher.regex.exec(path);
-    if (!match) continue;
-    const params: Record<string, string> = Object.fromEntries(matcher.names.map((name, i) => [name, match[i + 1]]));
-    return { key: matcher.key, locale: matcher.locale, params };
-  }
-  return null;
-}
-
 function classifyPage(pathname: string): PageInfo {
   const path = withTrailingSlash(pathname || "/");
-  const route = matchRoute(path);
-  if (route) return { ...PAGE_KINDS[route.key], niche: route.params.niche ?? null, locale: route.locale };
-  const locale = localeFromPath(path);
-  if (path.startsWith("/lab/") || path.startsWith("/font-test/")) {
-    return { area: "internal", type: "internal", tool: null, niche: null, locale };
-  }
-  return { area: "other", type: "other", tool: null, niche: null, locale };
+  return { area: "site", type: path === "/" ? "home" : "other", tool: null, niche: null, locale: "en" };
 }
 
 /** What kind of destination a link points to. */
 function linkIntent(url: URL, origin: string) {
   if (url.protocol === "mailto:") return "email";
-  if (url.hostname.endsWith("cal.com")) return "book_call";
-  if (url.hostname.endsWith("linkedin.com")) return "linkedin";
-  if (url.origin === origin) {
-    const page = classifyPage(url.pathname);
-    if (page.area === "studio") return `studio_${page.type}`;
-    return page.area === "tools" ? "tool" : "internal";
-  }
+  if (/(^|.)(globalgiving.org|paypal.me|paypal.com)$/.test(url.hostname)) return "donate";
+  if (url.pathname.includes("become-a-volunteer")) return "volunteer";
+  if (/(^|.)(instagram|facebook|linkedin|youtube|tiktok|twitter).com$/.test(url.hostname)) return "social";
+  if (url.origin === origin) return "internal";
   return "external";
 }
 
@@ -153,7 +39,7 @@ function linkIntent(url: URL, origin: string) {
 // PostHog loading and the event queue
 // ---------------------------------------------------------------------------
 
-const INTERNAL_KEY = "jeppesen_internal";
+const INTERNAL_KEY = "crhope_internal";
 
 function isInternalVisitor() {
   try {
@@ -168,9 +54,9 @@ function isInternalVisitor() {
 
 const POSTHOG_KEY: string | undefined = isInternalVisitor() ? undefined : import.meta.env.PUBLIC_POSTHOG_KEY || undefined;
 const POSTHOG_HOST: string = import.meta.env.PUBLIC_POSTHOG_HOST || "https://eu.i.posthog.com";
-const VISIT_KEY = "jeppesen_visit";
-const CONSENT_CHANGE_EVENT = "jeppesen:consent-change";
-const CONSENT_OPEN_EVENT = "jeppesen:consent-open";
+const VISIT_KEY = "crhope_visit";
+const CONSENT_CHANGE_EVENT = "crhope:consent-change";
+const CONSENT_OPEN_EVENT = "crhope:consent-open";
 
 type Properties = Record<string, unknown>;
 type QueuedEvent = { event: string; properties: Properties; timestamp: Date; beacon: boolean };
@@ -237,7 +123,7 @@ function loadPostHog() {
 
 function siteEnv() {
   const host = location.hostname;
-  // ponytail: production = the `site` host from astro.config (the original hardcoded jeppesen.dev).
+  // ponytail: production = the `site` host from astro.config .
   const siteHost = import.meta.env.SITE ? new URL(import.meta.env.SITE).hostname.replace(/^www\./, "") : "";
   if (host === siteHost || host === `www.${siteHost}`) return "production";
   if (host === "localhost" || host === "127.0.0.1") return "development";

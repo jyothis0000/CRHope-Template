@@ -1,86 +1,92 @@
 ---
-// Featured Work: an endless, draggable project slider. Each slide's image darkens
+// Latest news: an endless, draggable story slider. Each slide's image darkens
 // and an animated preview wipes in when it comes into view; a "Drag" pill
 // follows the mouse over the slider, and phones get previous/next buttons.
 import CtaButton from "./CtaButton.astro";
 import ProofStrip from "./ProofStrip.astro";
 
+// Latest news from the foundation. Each story links to the full article.
 const projects = [
   {
-    title: "Aboutwrap",
-    url: "https://aboutwrap.com/",
-    image: "/projects/aboutwrap/aboutwrap-main.webp",
-    animatedImage: "/projects/aboutwrap/animated-aboutwrap.webp",
+    title: "FXPesa partnership",
+    url: "https://www.crhopefoundation.org/cr-hope-foundation-announces-strategic-partnership-with-fxpesa-to-strengthen-education-in-kizimkazi-zanzibar/",
+    image: "/images/news/fxpesa.jpg",
+    alt: "CR HOPE and FXPesa teams with students at the Seeds of Light school",
+    animatedImage: "/images/news/fxpesa-2.jpg",
     paragraphs: [
-      "We helped Aboutwrap define what made the business different, then built a brand and website to make that difference visible. From printed materials to digital touchpoints and motion, every detail was designed to communicate the quality of the work.",
-      "The website brought it all together: clear messaging, considered imagery, and a straightforward path from discovering the business to making an inquiry.",
+      "CR HOPE & KARA Foundation is proud to announce a strategic partnership with FXPesa, powered by Equiti Group, to strengthen access to quality education for children in Kizimkazi village, Zanzibar.",
+      "FXPesa is supporting the continued growth and stability of the Seeds of Light school, which today serves 180 students aged 3 to 13 and employs 13 local teachers.",
     ],
     proof: [
-      { value: "19%", label: "Visitor-to-enquiry conversion" },
-      { value: "0–100", label: "End-to-end delivery" },
-      { value: "1", label: "Cohesive identity across formats" },
+      { value: "Feb 2026", label: "Strategic partnership" },
+      { value: "180", label: "Students aged 3 to 13" },
+      { value: "13", label: "Local teachers employed" },
     ],
   },
   {
-    title: "Mariohino",
-    url: "https://mariohino.com",
-    image: "/projects/mariohino/mario-main-image.webp",
-    animatedImage: "/projects/mariohino/marriohino-animated.webp",
+    title: "Robotics classes",
+    url: "https://www.crhopefoundation.org/cr-hope-foundation-school-adds-educational-robotics-classes/",
+    image: "/images/news/robotics.jpg",
+    alt: "Students at the Seeds of Light school during a lesson",
+    animatedImage: "/images/news/robotics-2.jpg",
     paragraphs: [
-      "We brought Mariohino’s creative vision and website design to life, pairing fast-loading pages with carefully crafted animations. The result preserves the character of the original design while making the experience feel smooth and responsive.",
-      "Behind the scenes, we made the website easy to update and built a dedicated video solution to give the work the playback quality it deserved.",
+      "The Seeds of Light school has launched educational Robotics classes with the support of two enthusiastic new Greek partners.",
+      "The Avgoulea School in Athens, one of only 325 Microsoft Showcase Schools worldwide, donated classroom equipment including BBC Micro:bit microprocessors for a new curriculum devised by robotics expert Apostolis Panos.",
     ],
     proof: [
-      { value: "Custom-built motion", label: "Handcrafted interactions and transitions" },
-      { value: "Dedicated video delivery", label: "Smooth playback for video-led work" },
+      { value: "Jun 2022", label: "New robotics curriculum" },
+      { value: "325", label: "Microsoft Showcase Schools worldwide" },
+      { value: "Micro:bit", label: "Hands-on coding kits" },
     ],
   },
   {
-    title: "The Pichichi Company",
-    url: "https://www.thepichichicompany.com/",
-    image: "/projects/thepichichicompany/pichichi-main-image.webp",
-    animatedImage: "/projects/thepichichicompany/animated-pichichi.webp",
+    title: "A new sister school",
+    url: "https://www.crhopefoundation.org/doing-more-together-cr-hope-foundation-welcomes-atsoglou-school-as-a-new-partner/",
+    image: "/images/news/atsoglou.jpg",
+    alt: "Atsoglou School visiting the children of Kizimkazi",
+    animatedImage: "/images/news/atsoglou-2.jpg",
     paragraphs: [
-      "We rebuilt The Pichichi Company’s online store to make shopping faster and running the business simpler. Alongside the refreshed storefront, we connected orders and stock management, refined product options, and improved customer emails.",
-      "Ongoing improvements to the shopping experience and search visibility supported year-over-year revenue growth and higher average order values.",
+      "We welcomed a new partner: Atsoglou School, an inspiring school in Greece that teaches its students the values of open-mindedness, compassion and generosity.",
+      "Founded in 1992 by Angeliki Atsoglou, it became the first official Seeds of Light Sister School after Angeliki travelled to Zanzibar and saw our work first hand.",
     ],
     proof: [
-      { value: "45.8%", label: "Year-over-year revenue growth" },
-      { value: "32.2%", label: "Increase in average order value" },
-      { icon: "workflow" as const, label: "Connected and automated operations" },
+      { value: "Feb 2022", label: "Partnership announced" },
+      { value: "1st", label: "Seeds of Light Sister School" },
+      { value: "1992", label: "Atsoglou School founded" },
     ],
   },
   {
-    title: "Smartests",
-    url: "https://www.smartests.app/",
-    image: "/projects/smartests/main-photo-smartests.webp",
-    animatedImage: "/projects/smartests/animated-smartests.webp",
+    title: "An unsung hero",
+    url: "https://www.crhopefoundation.org/a-tribute-to-an-unsung-hero/",
+    image: "/images/news/tribute.jpg",
+    alt: "William Fraser with students",
+    animatedImage: "/images/news/tribute-2.jpg",
     paragraphs: [
-      "A complete SaaS product, built and grown from the ground up. We created everything from the brand and product experience to the website, platform, videos, and multilingual content.",
-      "Growth was built into the product through useful tools, search-focused content, and organic discovery—reaching more than 9,000 registered users without spending on paid acquisition.",
+      "A tribute to William Fraser: teacher, volunteer and a shining example of the positive impact one person can have on the world.",
+      "Years ago, his support for Cosiano’s English classes set in motion the path that led to the Seeds of Light school and to CR HOPE itself.",
     ],
     proof: [
-      { value: "9,000+", label: "Registered users" },
-      { value: "4,000", label: "Peak monthly active users" },
-      { value: "All", label: "Leads generated organically" },
+      { value: "20 years", label: "Teaching in Canada" },
+      { value: "20 years", label: "Volunteering overseas" },
+      { value: "Jan 2023", label: "Tribute published" },
     ],
   },
   {
-    title: "Mielespaña",
-    url: "https://xn--mielespaa-s6a.com/",
-    image: "/projects/mielespaña/miel-main-image.webp",
-    animatedImage: "/projects/mielespaña/animated-mielespana.webp",
+    title: "Seeds of Light opens",
+    url: "https://www.crhopefoundation.org/our-seeds-of-light-school-is-open/",
+    image: "/images/news/seeds-of-light.jpg",
+    alt: "The first students on the opening day of the Seeds of Light school",
+    animatedImage: "/images/news/seeds-of-light-2.jpg",
     paragraphs: [
-      "We built Mielespaña’s online store from scratch and continued improving it as the business grew. From search visibility and the shopping experience to day-to-day management, we shaped a store that worked better for both customers and the people behind it.",
-      "Custom features, automation, and ongoing refinements supported the business as it grew from zero to 8k in monthly revenue.",
+      "On January 18, 2020, the Seeds of Light school created by CR HOPE Foundation opened its doors to its very first students.",
+      "“The opening of the Seeds of Light is just a dream come true,” said co-founder Renos Fountoulakis. “Education is the only weapon that can change the world for the better.”",
     ],
     proof: [
-      { value: "€0 to €96,000", label: "Revenue run rate" },
-      { icon: "workflow" as const, label: "Custom tools and automation" },
+      { value: "18 Jan 2020", label: "Doors opened" },
+      { value: "34", label: "First students, aged 3 to 5" },
     ],
   },
 ];
-
 // Three copies for the infinite loop: [clones][real][clones]. The script keeps
 // the real set in view; clones start hidden from assistive tech and out of the tab order.
 const slides = [true, false, true].flatMap((isClone) => projects.map((project) => ({ ...project, isClone })));
@@ -89,8 +95,8 @@ const slides = [true, false, true].flatMap((isClone) => projects.map((project) =
 const arrowShape = `<rect width="11.3154" height="2.05735" fill="currentColor"></rect><rect x="11.3154" y="1.02872" width="10.2867" height="2.05735" transform="rotate(90 11.3154 1.02872)" fill="currentColor"></rect><rect x="10.5723" y="2.18321" width="12.8716" height="2.05291" transform="rotate(135 10.5723 2.18321)" fill="currentColor"></rect>`;
 ---
 
-<section class="px-site-margin py-section-high" data-featured-work>
-  <h2 class="type-clash-semibold-32 mb-8 text-neutral-900">Featured Work</h2>
+<section id="news" class="px-site-margin py-section-high" data-featured-work>
+  <h2 class="type-clash-semibold-32 mb-8 text-neutral-900">Latest news</h2>
   <featured-work-slider class="block" data-project-count={projects.length}>
     <div class="touch-pan-y overflow-hidden" data-viewport>
       <!--
@@ -109,7 +115,7 @@ const arrowShape = `<rect width="11.3154" height="2.05735" fill="currentColor"><
                 <div class="relative col-span-7 overflow-hidden rounded-lg max-md:col-span-12" data-project-media>
                   <img
                     src={project.image}
-                    alt={`${project.title} project`}
+                    alt={project.alt}
                     width="1500"
                     height="1000"
                     class="block h-auto w-full rounded-lg"
@@ -137,13 +143,13 @@ const arrowShape = `<rect width="11.3154" height="2.05735" fill="currentColor"><
                   <div class="mb-8 flex items-center justify-between gap-4 max-md:mb-4">
                     <h3 class="type-author-semibold-32 min-w-0">{project.title}</h3>
                     <CtaButton
-                      label="Live site"
+                      label="Read story"
                       href={project.url}
                       variant="white"
                       size="md"
                       target="_blank"
                       rel="noopener noreferrer"
-                      aria-label={`${project.title} live site (opens in a new tab)`}
+                      aria-label={`Read the story: ${project.title} (opens in a new tab)`}
                       draggable="false"
                       tabindex={project.isClone ? "-1" : undefined}
                       data-live-link
@@ -154,7 +160,7 @@ const arrowShape = `<rect width="11.3154" height="2.05735" fill="currentColor"><
                       <p class="type-author-medium-18">{paragraph}</p>
                     ))}
                   </div>
-                  <ProofStrip label={`${project.title} results`} items={project.proof} class="mt-auto pt-8" />
+                  <ProofStrip label={`${project.title} highlights`} items={project.proof} class="mt-auto pt-8" />
                 </div>
               </div>
             </div>
@@ -165,7 +171,7 @@ const arrowShape = `<rect width="11.3154" height="2.05735" fill="currentColor"><
     <div class="-mx-2 mt-2 flex items-center justify-between text-neutral-700 md:hidden" data-slider-nav>
       <button
         type="button"
-        aria-label="Previous project"
+        aria-label="Previous story"
         class="flex size-8 cursor-pointer items-center justify-center rounded-sm transition-opacity hover:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-neutral-900 relative before:absolute before:-inset-1.5"
         data-slider-previous
       >
@@ -175,7 +181,7 @@ const arrowShape = `<rect width="11.3154" height="2.05735" fill="currentColor"><
       </button>
       <button
         type="button"
-        aria-label="Next project"
+        aria-label="Next story"
         class="flex size-8 cursor-pointer items-center justify-center rounded-sm transition-opacity hover:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-neutral-900 relative before:absolute before:-inset-1.5"
         data-slider-next
       >
