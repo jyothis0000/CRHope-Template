@@ -1,10 +1,11 @@
 ---
 /**
- * Button or link with an optional asterisk icon that morphs into an arrow on hover.
- * Renders an <a> when `href` is set, otherwise a <button>. Extra attributes
- * (target, aria-*, data-*, style…) pass straight through to that element.
+ * Button or link with an optional CR HOPE owl icon that slides across and turns into
+ * an arrow on hover. Renders an <a> when `href` is set, otherwise a <button>. Extra
+ * attributes (target, aria-*, data-*, style…) pass straight through to that element.
  */
 import type { HTMLAttributes } from "astro/types";
+import owlSvg from "../../public/brand/owl.svg?raw";
 
 type Props = HTMLAttributes<"a"> &
   HTMLAttributes<"button"> & {
@@ -19,8 +20,8 @@ const { label, href, variant = "black", size = "md", icon = false, class: classN
 const Tag = href ? "a" : "button";
 const typeClass = size === "lg" ? "type-author-semibold-18" : "type-author-semibold-16";
 
-// The asterisk (points) and the arrow it morphs into (data-arrow-points) share a vertex count.
-const asterisk = `100,42.4 68.2,42.4 90.7,20 80,9.3 57.6,31.8 57.6,0 42.4,0 42.4,31.8 20,9.3 9.3,20 31.8,42.4 0,42.4 0,57.6 31.8,57.6 9.3,80 20,90.7 42.4,68.2 42.4,100 57.6,100 57.6,68.2 80,90.7 90.7,80 68.2,57.6 100,57.6`;
+// The owl fades into the arrow as --progress goes 0 → 1 (CSS below).
+const owlPaths = owlSvg.replace(/^[\s\S]*?<svg[^>]*>|<\/svg>\s*$/g, "");
 const arrow = `99.97464788732394,41.169629629629625 99.97464788732394,41.169629629629625 79.97957746478873,28.024768518518517 73.31408450704225,23.643194444444443 73.31408450704225,23.76601851851852 73.31408450704225,23.76601851851852 37.32394366197183,0 37.32394366197183,0 37.32394366197183,0 17.3556338028169,13.127314814814813 59.34507042253521,40.6087962962963 0,40.6087962962963 0,59.25694444444445 59.34507042253521,59.25694444444445 17.3556338028169,86.73842592592592 37.32394366197183,99.86574074074075 37.32394366197183,99.86574074074075 37.32394366197183,99.86574074074075 73.31408450704225,76.09953703703704 73.31408450704225,76.09953703703704 73.31408450704225,76.22268518518518 73.31408450704225,76.22268518518518 99.97464788732394,58.6962962962963 99.97464788732394,58.6962962962963`;
 ---
 
@@ -38,8 +39,17 @@ const arrow = `99.97464788732394,41.169629629629625 99.97464788732394,41.1696296
     {
       icon && (
         <span class="cta-icon" aria-hidden="true">
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" fill="currentColor" focusable="false">
-            <polygon points={asterisk} data-arrow-points={arrow} fill-rule="evenodd" />
+          <svg
+            class="cta-owl"
+            viewBox="0 0 20.056 34.05"
+            preserveAspectRatio="xMinYMid meet"
+            fill="currentColor"
+            fill-rule="evenodd"
+            focusable="false"
+            set:html={owlPaths}
+          />
+          <svg class="cta-arrow" viewBox="0 0 100 100" preserveAspectRatio="none" fill="currentColor" focusable="false">
+            <polygon points={arrow} fill-rule="evenodd" />
           </svg>
         </span>
       )
@@ -51,7 +61,8 @@ const arrow = `99.97464788732394,41.169629629629625 99.97464788732394,41.1696296
 <script>
   import { gsap } from "gsap";
 
-  // Hover/focus: the label slides and the asterisk morphs into an arrow.
+  // Hover/focus: the label slides and the owl crosses over, turning into an arrow.
+  // Everything is driven by the --progress custom property (see the <style>).
   class SwapCta extends HTMLElement {
     cleanup?: () => void;
 
@@ -59,12 +70,8 @@ const arrow = `99.97464788732394,41.169629629629625 99.97464788732394,41.1696296
       if (this.cleanup) return;
       const button = this.querySelector<HTMLElement>("[data-cta-button]");
       const label = this.querySelector<HTMLElement>("[data-cta-label]");
-      const polygon = this.querySelector("polygon");
-      if (!button || !label || !polygon) return;
-
-      const arrowPoints = polygon.getAttribute("data-arrow-points");
-      const asteriskPoints = polygon.getAttribute("points");
-      if (!arrowPoints || !asteriskPoints) return;
+      const icon = this.querySelector(".cta-icon");
+      if (!button || !label || !icon) return;
 
       const controller = new AbortController();
       const { signal } = controller;
@@ -80,7 +87,7 @@ const arrow = `99.97464788732394,41.169629629629625 99.97464788732394,41.1696296
       resizeObserver.observe(label);
 
       const timeline = gsap.timeline({ paused: true, defaults: { duration: 0.6, ease: "power3.inOut" } });
-      timeline.to(button, { "--progress": 1 }, 0).to(polygon, { attr: { points: arrowPoints } }, 0);
+      timeline.to(button, { "--progress": 1 }, 0);
 
       const update = () => {
         const active = !button.matches(":disabled") && (hovered || focused);
@@ -130,7 +137,6 @@ const arrow = `99.97464788732394,41.169629629629625 99.97464788732394,41.1696296
         timeline.kill();
         button.style.removeProperty("--progress");
         button.style.removeProperty("--label-width");
-        polygon.setAttribute("points", asteriskPoints);
       };
     }
 
@@ -232,16 +238,27 @@ const arrow = `99.97464788732394,41.169629629629625 99.97464788732394,41.1696296
     height: var(--cta-icon);
     pointer-events: none;
     transform: translateX(calc(var(--progress) * (var(--label-width) + var(--cta-icon-travel))));
-    justify-content: flex-start;
-    align-items: center;
-    display: flex;
+    position: relative;
+    display: block;
   }
+  /* Owl at rest; it fades out as the arrow (9/14 wide, 12/14 tall, left-aligned) fades in. */
   .cta-icon svg {
-    width: calc(var(--cta-icon) * (1 - 5 / 14 * var(--progress)));
-    height: calc(var(--cta-icon) * (1 - 2 / 14 * var(--progress)));
-    flex: none;
+    position: absolute;
+    left: 0;
     display: block;
     overflow: visible;
+  }
+  .cta-owl {
+    top: 0;
+    width: 100%;
+    height: 100%;
+    opacity: calc(1 - var(--progress));
+  }
+  .cta-arrow {
+    top: calc(var(--cta-icon) / 14);
+    width: calc(var(--cta-icon) * 9 / 14);
+    height: calc(var(--cta-icon) * 12 / 14);
+    opacity: var(--progress);
   }
   .cta-label {
     display: block;

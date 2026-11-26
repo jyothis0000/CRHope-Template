@@ -1,10 +1,29 @@
 ---
 // Home hero: the CR HOPE wordmark assembles from its pieces (the owl sweeps
-// across while "HOPE" wipes in), then the title, intro copy and photo fade in.
-// The photo grows into the grid on scroll.
+// across while "HOPE" wipes in), then the title, intro copy and video fade in.
+// The video grows into the grid on scroll.
 //
 // The wordmark is 6.369 times as wide as it is tall (see public/brand/*.svg);
 // that ratio appears below and in the <style> as 50vw / 6.369 and 100vw / 6.369.
+
+// "Gimme Hope" from CR HOPE's YouTube channel, played as a muted background loop.
+// enablejsapi lets the script pause it while it's off screen.
+const youtubeId = "zTWS5JsArrk";
+const youtubeSrc =
+  `https://www.youtube-nocookie.com/embed/${youtubeId}?` +
+  new URLSearchParams({
+    autoplay: "1",
+    mute: "1",
+    loop: "1",
+    playlist: youtubeId, // loop only works with a playlist
+    controls: "0",
+    playsinline: "1",
+    rel: "0",
+    fs: "0",
+    disablekb: "1",
+    iv_load_policy: "3",
+    enablejsapi: "1",
+  });
 ---
 
 <div class="relative -mt-40 min-h-svh pt-40">
@@ -50,13 +69,27 @@
         Seeds of Light school in Kizimkazi, 180 children aged 3 to 13 learn with 13 local teachers.
       </p>
       <div id="intro-video" class="intro-video absolute right-[2.7vw] w-[94.6vw] sm:w-[22%] h-auto border-8 border-background rounded-lg">
-        <img
-          src="/images/hero-girl.webp"
-          alt="A smiling girl at the Seeds of Light school in Kizimkazi"
-          width="2560"
-          height="1787"
-          class="block aspect-video w-full h-auto rounded-lg object-cover"
-        />
+        <!--
+          The photo shows until the player paints over it. The iframe ignores
+          the pointer so the wheel keeps scrolling the page over it, and is
+          zoomed 1.25x to crop the letterbox bars: the video is about 2.2:1.
+        -->
+        <div class="relative aspect-video w-full overflow-hidden rounded-lg">
+          <img
+            src="/images/hero-girl.webp"
+            alt=""
+            width="2560"
+            height="1787"
+            class="absolute inset-0 size-full object-cover"
+          />
+          <iframe
+            src={youtubeSrc}
+            title="CR HOPE Foundation: Gimme Hope"
+            allow="autoplay; encrypted-media; picture-in-picture"
+            referrerpolicy="strict-origin-when-cross-origin"
+            tabindex="-1"
+            class="pointer-events-none absolute inset-0 size-full scale-[1.25] border-0"></iframe>
+        </div>
       </div>
     </div>
   </section>
@@ -74,42 +107,53 @@
   let context: gsap.Context | undefined;
   let media: gsap.MatchMedia | undefined;
   let videoObserver: IntersectionObserver | undefined;
+  let videoMessages: AbortController | undefined;
 
-  // Pause the intro video while it is off screen; resume it only if we paused it.
+  // Control the YouTube loop over postMessage (IFrame Player API): pause it while it is off
+  // screen, and drop its captions whenever playback starts (the video has lyrics captions on
+  // by default, which don't suit a muted background loop).
+  // ponytail: commands sent before the player is ready are dropped; autoplay covers the first play.
+  const YOUTUBE_ORIGIN = "https://www.youtube-nocookie.com";
+
   function watchIntroVideo() {
-    const video = document.querySelector<HTMLVideoElement>("#intro-video video");
-    if (!video || !("IntersectionObserver" in window)) return;
-    let visible = true;
-    let pausedOffscreen = false;
+    const frame = document.querySelector<HTMLIFrameElement>("#intro-video iframe");
+    if (!frame) return;
+    const post = (message: object) => frame.contentWindow?.postMessage(JSON.stringify(message), YOUTUBE_ORIGIN);
+    const command = (func: string, args: unknown[] = []) => post({ event: "command", func, args });
 
-    videoObserver = new IntersectionObserver(
-      ([entry]) => {
-        visible = entry.isIntersecting;
-        if (visible) {
-          if (pausedOffscreen) {
-            pausedOffscreen = false;
-            video.play().catch(() => {});
-          }
-        } else if (!video.paused) {
-          pausedOffscreen = true;
-          video.pause();
+    // Subscribe to player events; sent now and on load, whichever comes after the player is listening.
+    videoMessages = new AbortController();
+    const subscribe = () => post({ event: "listening", id: 1, channel: "widget" });
+    frame.addEventListener("load", subscribe, { signal: videoMessages.signal });
+    subscribe();
+
+    let playing = false;
+    window.addEventListener(
+      "message",
+      (event) => {
+        if (event.origin !== YOUTUBE_ORIGIN || event.source !== frame.contentWindow) return;
+        let data: { event?: string; info?: unknown };
+        try {
+          data = JSON.parse(event.data);
+        } catch {
+          return;
         }
+        const state =
+          data.event === "onStateChange" ? data.info : (data.info as { playerState?: number } | undefined)?.playerState;
+        if (state === undefined) return;
+        const nowPlaying = state === 1;
+        if (nowPlaying && !playing) command("unloadModule", ["captions"]);
+        playing = nowPlaying;
       },
+      { signal: videoMessages.signal },
+    );
+
+    if (!("IntersectionObserver" in window)) return;
+    videoObserver = new IntersectionObserver(
+      ([entry]) => command(entry.isIntersecting ? "playVideo" : "pauseVideo"),
       { rootMargin: "200px 0px" },
     );
-    videoObserver.observe(video);
-
-    // Autoplay may kick in after the hero has already scrolled away.
-    video.addEventListener(
-      "play",
-      () => {
-        if (!visible) {
-          pausedOffscreen = true;
-          video.pause();
-        }
-      },
-      { once: true },
-    );
+    videoObserver.observe(frame);
   }
 
   // Jump straight to the end of the intro animation.
@@ -126,6 +170,8 @@
   function teardown() {
     videoObserver?.disconnect();
     videoObserver = undefined;
+    videoMessages?.abort();
+    videoMessages = undefined;
     media?.revert();
     media = undefined;
     context?.revert();
